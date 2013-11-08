@@ -39,8 +39,8 @@
 | 0x06   | DIV A,B          | A = A/B ; D = A%B                   |                                     |
 | 0x07   | MOD A,B          | A = A%B                             |                                     |
 | 0x08   | NOT A            | A = ~A                              |                                     |
-| 0x09   | AND A,B          | A = A AND B                         |                                     |
-| 0x0A   | OR A,B           | A = A|B                             |                                     |
+| 0x09   | AND A,B          | A = A&B                             |                                     |
+| 0x0A   | OR A,B           | A = A\|B                            |                                     |
 | 0x0B   | XOR A,B          | A = A^B                             |                                     |
 | 0x0C   | SHL A,B          | A = A << B                          |                                     |
 | 0x0D   | SHR A,B          | A = A >> B                          |                                     |
