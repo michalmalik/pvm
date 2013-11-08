@@ -10,6 +10,6 @@
 ### Instruction specifications
 * **FLAGS** bit pattern: `0x00000OSE`
 * operation code is 2 bytes `0xDDDDDSSSSSOOOOOO`
--- destination - 5 bits (max. 0x1F)
--- source - 5 bits (max. 0x1F)
--- operation - 6 bits (max. 0x3F)
+--* destination - 5 bits (max. 0x1F)
+--* source - 5 bits (max. 0x1F)
+--* operation - 6 bits (max. 0x3F)
