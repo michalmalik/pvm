@@ -14,7 +14,7 @@ extern void disassemble(u16 *mem, u16 ip, char *out);
 struct cpu {
         u16 r[7];
         u16 sp, ip;
-        u8 f : 3;
+        u8 of:1;
         u16 mem[0x8000];
         int end;
 };
@@ -58,7 +58,7 @@ static void memory_dmp(struct cpu *p, const char *fn) {
 }
 
 static void debug(struct cpu *p) {
-        fprintf(debug_fp, "%2s: 0x%04X\n", "A", p->r[0]);
+        /*fprintf(debug_fp, "%2s: 0x%04X\n", "A", p->r[0]);
         fprintf(debug_fp, "%2s: 0x%04X\n", "B", p->r[1]);
         fprintf(debug_fp, "%2s: 0x%04X\n", "C", p->r[2]);
         fprintf(debug_fp, "%2s: 0x%04X\n", "D", p->r[3]);
@@ -67,10 +67,8 @@ static void debug(struct cpu *p) {
         fprintf(debug_fp, "%2s: 0x%04X\n", "Z", p->r[6]);
         fprintf(debug_fp, "%2s: 0x%04X\n", "SP", p->sp);
         fprintf(debug_fp, "%2s: 0x%04X\n", "IP", p->ip);
-        fprintf(debug_fp, "%2s: 0x%02X\n", "E", p->f&1);
-        fprintf(debug_fp, "%2s: 0x%02X\n", "S", (p->f&2)>>1);
-        fprintf(debug_fp, "%2s: 0x%02X\n", "O", (p->f&4)>>2);
-        fprintf(debug_fp, "\n");
+        fprintf(debug_fp, "%2s: 0x%02X\n", "OF", p->of);
+        fprintf(debug_fp, "\n");*/
 
         printf("%2s: 0x%04X\n", "A", p->r[0]);
         printf("%2s: 0x%04X\n", "B", p->r[1]);
@@ -81,9 +79,7 @@ static void debug(struct cpu *p) {
         printf("%2s: 0x%04X\n", "Z", p->r[6]);
         printf("%2s: 0x%04X\n", "SP", p->sp);
         printf("%2s: 0x%04X\n", "IP", p->ip);
-        printf("%2s: 0x%04X\n", "E", p->f&1);
-        printf("%2s: 0x%04X\n", "S", (p->f&2)>>1);
-        printf("%2s: 0x%04X\n", "O", (p->f&4)>>2);
+        printf("%2s: 0x%04X\n", "OF", p->of);
         printf("\n");
 }
 
@@ -144,6 +140,18 @@ static u16 *getopr(struct cpu *p, u8 b, u16 *w) {
         return o;
 }
 
+int word(u16 op) {
+        u8 wc = 1;
+        u16 o = op&0x3f;
+        u8 d = op>>11;
+        u8 s = (op>>6)&0x1f;
+
+        if(d >= 0x15 && d <= 0x1D) wc++;
+        if(s >= 0x15 && s <= 0x1D) wc++;
+
+        return wc;
+}
+
 static void step(struct cpu *p) {
         char out[128];
         zero(out);
@@ -160,88 +168,76 @@ static void step(struct cpu *p) {
         s = getopr(p, (op>>6)&0x1f, &w);
 
         switch(o) {
-                case 1: *d = *s; break;
-                case 2: {
-                        if(*d == *s) p->f |= 1;
-                        if(*d != *s) p->f &= 2;
-                        if(*d > *s) p->f |= 2;
-                        if(*d < *s) p->f &= 1;
-                } break;
-                case 3: {
+                case 0: *d = *s; break;
+                case 1: {
                         if(*s+*d>0xFFFF) {
-                                p->f |= 4;
+                                p->of = 1;
                         } 
                         *d = (*s+*d)&0xffff; 
                         break;
                 }
-                case 4: *d = (*d-*s)&0xffff; break;
-                case 5: *d = (*s*(*d))&0xffff; break;
-                case 6: {
+                case 2: *d = (*d-*s)&0xffff; break;
+                case 3: *d = (*s*(*d))&0xffff; break;
+                case 4: {
                         *d = (*d/(*s));
                         p->r[3] = (*d)%(*s);
                 } break;
-                case 7: {
+                case 5: {
                         *d = (*d)%(*s);
                 } break;
-                case 8: {
+                case 6: {
                         *d = ~(*d);
                         break;
                 }
-                case 9: {
+                case 7: {
                         *d = (*d)&(*s);
                 } break;
-                case 0xA: {
+                case 8: {
                         *d = (*d)|(*s);
                 } break;
-                case 0xB: {
+                case 9: {
                         *d = (*d)^(*s);
                 } break;
-                case 0xC: {
+                case 0x0A: {
                         *d = ((*d)<<(*s))&0xffff;
                 } break;
-                case 0xD: {
+                case 0x0B: {
                         *d = ((*d)>>(*s))&0xffff;
                 } break;
-                case 0xE: {
-                        p->ip = *d;;
+                case 0x0C: {
+                        if(*d != *s) p->ip += word(*(p->mem+p->ip));
                 } break;
-                case 0xF: {
-                        if(p->f&1) p->ip = *d;
+                case 0x0D: {
+                        if(*d == *s) p->ip += word(*(p->mem+p->ip));
+                } break;
+                case 0x0E: {
+                        if(*d < *s) p->ip += word(*(p->mem+p->ip));
+                } break;
+                case 0x0F: {
+                        if(*d > *s) p->ip += word(*(p->mem+p->ip));
                 } break;
                 case 0x10: {
-                        if(!(p->f&1)) p->ip = *d;
+                        p->ip = *d;
                 } break;
                 case 0x11: {
-                        if(p->f&2) p->ip = *d;
-                } break;
-                case 0x12: {
-                        if(!(p->f&2)) p->ip = *d;
-                } break;
-                case 0x13: {
-                        if(p->f&1 || p->f&2) p->ip = *d;
-                } break;
-                case 0x14: {
-                        if(p->f&1 || !(p->f&2)) p->ip = *d;
-                } break;
-                case 0x15: {
                         // push IP on stack
                         p->mem[p->sp--] = p->ip;
                         // jump
                         p->ip = *d; 
                 } break;
-                case 0x16: {
+                case 0x12: {
+                        p->mem[p->sp--] = *d;
+                } break;
+                case 0x13: {
+                        *d = p->mem[++p->sp];
+                        p->mem[p->sp] = 0;
+                } break;
+                case 0x14: {
                         // pop IP from stack
                         p->ip = p->mem[++p->sp];
                         p->mem[p->sp] = 0;
                 } break;
-                case 0x17: {
-                        p->mem[p->sp--] = *d;
-                } break;
-                case 0x18: {
-                        *d = p->mem[++p->sp];
-                        p->mem[p->sp] = 0;
-                } break;
-                case 0x19: {
+                case 0x15: {
                         p->end = 1;
                 } break;
                 default: break;

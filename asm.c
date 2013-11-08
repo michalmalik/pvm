@@ -49,11 +49,11 @@ char *sym_fn = NULL;
 char *tn[] = {
 	"A", "B", "C", "D", "X", "Y", "Z",
 	"SP", "IP",
-	"SET", "CMP", 
+	"SET",
 	"ADD", "SUB", "MUL", "DIV", "MOD",
 	"NOT", "AND", "OR", "XOR", "SHL", "SHR",
-	"JMP", "JE", "JNE", "JG", "JL", "JGE", "JLE", "JTR",
-	"RET", "PUSH", "POP", "END", "DAT", 
+	"IFE", "IFN", "IFG", "IFL", "JMP", "JTR",
+	"PUSH", "POP", "RET", "END", "DAT", 
 	".", "#", ":", ",", "[", "]", "+",
 	"(NUMBER)", "(STRING)", "(QUOTED STRING)", "(EOF)"
 };
@@ -61,11 +61,11 @@ char *tn[] = {
 enum _tokens {
 	tA, tB, tC, tD, tX, tY, tZ,
 	tSP, tIP,
-	tSET, tCMP, 
+	tSET, 
 	tADD, tSUB, tMUL, tDIV, tMOD,
 	tNOT, tAND, tOR, tXOR, tSHL, tSHR,
-	tJMP, tJE, tJNE, tJG, tJL, tJGE, tJLE, tJTR,
-	tRET, tPUSH, tPOP, tEND, tDAT,
+	tIFE, tIFN, tIFG, tIFL, tJMP, tJTR,
+	tPUSH, tPOP, tRET, tEND, tDAT,
 	tDOT, tHASH, tCOLON, tCOMMA, tBS, tBE, tPLUS,
 	tNUM, tSTR, tQSTR, tEOF
 };
@@ -423,31 +423,28 @@ void assemble_o(u16 *o, int *v) {
 void assemble_i(int inst, u16 d, u16 s, int v1, int v2) {
 	u16 o = 0;
 	switch(inst) {
-		case tSET: o = 1; break;
-		case tCMP: o = 2; break;
-		case tADD: o = 3; break;
-		case tSUB: o = 4; break;
-		case tMUL: o = 5; break;
-		case tDIV: o = 6; break;
-		case tMOD: o = 7; break;
-		case tNOT: o = 8; break;
-		case tAND: o = 9; break;
-		case tOR: o = 0xA; break;
-		case tXOR: o = 0xB; break;
-		case tSHL: o = 0xC; break;
-		case tSHR: o = 0xD; break;
-		case tJMP: o = 0xE; break;
-		case tJE: o = 0xF; break;
-		case tJNE: o = 0x10; break;
-		case tJG: o = 0x11; break;
-		case tJL: o = 0x12; break;
-		case tJGE: o = 0x13; break;
-		case tJLE: o = 0x14; break;
-		case tJTR: o = 0x15; break;
-		case tRET: o = 0x16; break;
-		case tPUSH: o = 0x17; break;
-		case tPOP: o = 0x18; break;
-		case tEND: o = 0x19; break;
+		case tSET: o = 0; break;
+		case tADD: o = 1; break;
+		case tSUB: o = 2; break;
+		case tMUL: o = 3; break;
+		case tDIV: o = 4; break;
+		case tMOD: o = 5; break;
+		case tNOT: o = 6; break;
+		case tAND: o = 7; break;
+		case tOR: o = 8; break;
+		case tXOR: o = 9; break;
+		case tSHL: o = 0x0A; break;
+		case tSHR: o = 0x0B; break;
+		case tIFE: o = 0x0C; break;
+		case tIFN: o = 0x0D; break;
+		case tIFG: o = 0x0E; break;
+		case tIFL: o = 0x0F; break;
+		case tJMP: o = 0x10; break;
+		case tJTR: o = 0x11; break;
+		case tPUSH: o = 0x12; break;
+		case tPOP: o = 0x13; break;
+		case tRET: o = 0x14; break;
+		case tEND: o = 0x15; break;
 	}
 	MEM[IP++] = (u16)(o|(s<<6)|(d<<11));
 	if(v1 != -1) MEM[IP++] = v1&0xFFFF;		
@@ -540,20 +537,20 @@ again:
 				break;
 			}
 			
-			case tSET: case tCMP:
+			case tSET:
 			case tADD: case tSUB: case tMUL: case tDIV:
 			case tMOD: case tAND: case tOR: case tXOR:
-			case tSHL: case tSHR: {
+			case tSHL: case tSHR: 
+			case tIFE: case tIFN: case tIFG: case tIFL: 
+			{
 				assemble_o(&d, &v1);
 				expect(tCOMMA);				
 				assemble_o(&s, &v2);
 				assemble_i(t, d, s, v1, v2);
 				break;
 			}
-			case tNOT: case tJMP: case tJE: case tJNE: case tJG:
-			case tJL: case tJGE: case tJLE: case tJTR:
-			case tPUSH: case tPOP:
-			{
+			case tNOT:
+			case tJMP: case tJTR: case tPUSH: case tPOP: {
 				assemble_o(&d, &v1);
 				assemble_i(t, d, 0, v1, -1);
 				break;	
