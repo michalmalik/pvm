@@ -33,7 +33,7 @@
 ### Instruction set (for operation)
 
 | OP     | INS              | detail                              | description                         |
-| ------ | ---------------- | ----------------------------------- | ----------------------------------- |
+| :----: | ---------------- | ----------------------------------- | ----------------------------------- |
 | 0x00   | SET A,B          | A = B                               |                                     |
 | 0x01   | ADD A,B          | A = A+B ; sets OF flag              |                                     |               
 | 0x02   | SUB A,B          | A = A-B ; sets OF flag              |                                     |
@@ -47,15 +47,15 @@
 | 0x0B   | SHL A,B          | A = A << B                          |                                     |
 | 0x0C   | SHR A,B          | A = A >> B                          |                                     |
 | 0x0D   | IFE A,B          | execute next instruction if A==B    |                                     |
-| 0x0E   | IFN A,B          | if A != B            		  |                                     |
-| 0x0F   | IFG A,B          | if A > B            		  |                                     |
-| 0x10   | IFL A,B          | if A < B           		  |                                     |
+| 0x0E   | IFN A,B          | if A!=B            		  |                                     |
+| 0x0F   | IFG A,B          | if A>B            		  |                                     |
+| 0x10   | IFL A,B          | if A<B           		   	  |                                     |
 | 0x11   | JMP label        | jump to label            		  |                                     |
 | 0x12   | JTR label        | jump to label, PUSH IP+1 		  |                                     |
 | 0x13   | PUSH A           | pushes A on stack; --SP 		  |                                     |
 | 0x14   | POP A            | pops value from stack to A          |                                     |
 | 0x15   | RET              | POP IP                       	  |                                     |
-| 0x18   | END              | ends program execution              |                                     |
+| 0x16   | END              | ends program execution              |                                     |
 |   -    | DAT w            | writes literal value to memory      |                                     |
 
 ### Assembly language
@@ -64,6 +64,7 @@
 ```
 SET A,0x1000
 SET B,[A]
+END
 ```
 
 #### Example no. 2
@@ -107,16 +108,15 @@ END
 #### Example no. 4
 
 ##### test.asm
-
 ```
-PUSH 0xF00D
-PUSH 0x8
-PUSH 0x1000
+PUSH 0xF00D		; value
+PUSH 0x8 		; count
+PUSH 0x1000 		; mem_address
 JTR write_mem
 
-PUSH 0xBEAF
-PUSH 0x8
-PUSH 0x2000
+PUSH 0xBEAF 		; value
+PUSH 0x8 		; count
+PUSH 0x2000 		; mem_address
 JTR write_mem
 
 END
@@ -140,6 +140,61 @@ END
 		IFN A,C
 			JMP loop
 
+	PUSH Z
+	RET
+```
+
+#### Example no. 5
+
+##### test.asm
+```
+PUSH 0xF00D
+PUSH 0x8
+PUSH mem_1
+JTR write_mem
+
+PUSH 0x8
+PUSH mem_1
+PUSH mem_2
+JTR copy_mem
+
+END
+
+.mem_1 	DAT 	0x1000
+.mem_2	DAT 	0x2000
+```
+
+##### memory.asm
+```
+:write_mem
+	POP Z
+
+	POP X 		; mem_address
+	POP C 		; count
+	POP Y 		; value
+
+	SET A,0
+	:loop
+		SET [X+A],Y
+		ADD A,1
+		IFN A,C
+			JMP loop
+
+	PUSH Z
+	RET
+
+:copy_mem
+	POP Z
+
+	POP X 		; dst_mem_addr
+	POP Y 		; src_mem_addr
+	POP C 		; count
+
+	:loop_2
+		SET [X+A],[Y+A]
+		ADD A,1
+		IFN A,C
+			JMP loop_2
 	PUSH Z
 	RET
 ```
