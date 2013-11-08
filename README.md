@@ -14,7 +14,7 @@
 * **source** - 5 bits (max. 0x1F)
 * **operation** - 6 bits (max. 0x3F)
 
-# Opcodes for d,s
+# Opcodes for destination,source
 
 | opcode 	| detail	   | detail				    |
 | ------------- | ---------------- | -------------------------------------- |
