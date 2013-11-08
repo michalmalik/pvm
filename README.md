@@ -2,17 +2,20 @@
 * **16-bit** CPU
 * **0x8000 words** of memory available (0x10000 bytes)
 * **7 registers** (A, B, C, D, X, Y, Z), **stack pointer** (SP), **instruction pointer** (IP or program counter)
-* **3 flags** (E, S, O) in FLAGS register
-* instruction takes maximum **6 bytes** 
+* **OF** (overflow) flag
 * **0x2000 words** global stack size, start `0x7FFF`, goes down
 * **0x500 words** screen size (80x32 bytes), start `0x0`
+* instruction takes maximum **6 bytes** 
 
 ### Instruction specifications
-* **FLAGS** bit pattern: `0x00000OSE`
-* instruction opcode is 2 bytes `0xDDDDDSSSSSOOOOOO`
-* **destination** - 5 bits (max. 0x1F)
-* **source** - 5 bits (max. 0x1F)
-* **operation** - 6 bits (max. 0x3F)
+* instruction opcode is 16 bits `0xDDDDDSSSSSOOOOOO`
+
+| instruction part   | bits   | max value  |
+| ------------------ | :----: | :--------: |
+| operation	     | 6      | 0x3F       |
+| destination	     | 5      | 0x1F       |
+| source	     | 5      | 0x1F       |
+
 
 ### Opcodes for destination,source
 
@@ -27,44 +30,79 @@
 | 0x1E		| SP               | literal value of stack pointer         |
 | 0x1F		| IP               | literal value of instruction pointer   |
 
-### Instruction set
+### Instruction set (for operation)
 
 | OP     | INS              | detail                              | description                         |
 | ------ | ---------------- | ----------------------------------- | ----------------------------------- |
-| 0x01   | SET A,B          | A = B                               |                                     |
-| 0x02   | CMP A,B          | compares A with B                   | if A == B -> E = 1;if A > B -> S = 1|                                                    
-| 0x03   | ADD A,B          | A = A+B ; sets O flag               |                                     |
-| 0x04   | SUB A,B          | A = A-B ; sets O flag               |                                     |
-| 0x05   | MUL A,B          | A = A*B                             |                                     |
-| 0x06   | DIV A,B          | A = A/B ; D = A%B                   |                                     |
-| 0x07   | MOD A,B          | A = A%B                             |                                     |
-| 0x08   | NOT A            | A = ~A                              |                                     |
-| 0x09   | AND A,B          | A = A&B                             |                                     |
-| 0x0A   | OR A,B           | A = A OR B                          |                                     |
-| 0x0B   | XOR A,B          | A = A^B                             |                                     |
-| 0x0C   | SHL A,B          | A = A << B                          |                                     |
-| 0x0D   | SHR A,B          | A = A >> B                          |                                     |
-| 0x0E   | JMP offset       | jumps to offset                     |                                     |
-| 0x0F   | JE offset        | jump to offset if E == 1            |                                     |
-| 0x10   | JNE offset       | jump to offset if E == 0            |                                     |
-| 0x11   | JG offset        | jump to offset if S == 1            |                                     |
-| 0x12   | JL offset        | jump to offset if S == 0            |                                     |
-| 0x13   | JGE offset       | jump to offset if (E == 1 OR S == 1)|                                     |
-| 0x14   | JLE offset       | jump to offset if (E == 1 OR S == 0)|                                     |
-| 0x15   | JTR offset       | jump to routine ; PUSH IP+1         |                                     |
-| 0x16   | RET              | POP IP ; jump                       |                                     |
-| 0x17   | PUSH A           | pushes A on stack ; --SP            |                                     |
-| 0x18   | POP A            | pops [SP] to A ; ++SP               |                                     |
-| 0x19   | END              | ends program execution              |                                     |
+| 0x00   | SET A,B          | A = B                               |                                     |
+| 0x01   | ADD A,B          | A = A+B ; sets OF flag              |                                     |               
+| 0x02   | SUB A,B          | A = A-B ; sets OF flag              |                                     |
+| 0x03   | MUL A,B          | A = A*B ; sets OF flag              |                                     |
+| 0x04   | DIV A,B          | A = A/B ; D = A%B                   |                                     |
+| 0x05   | MOD A,B          | A = A%B                   	  |                                     |
+| 0x06   | NOT A            | A = ~(A)                            |                                     |
+| 0x08   | AND A,B          | A = A&B                             |                                     |
+| 0x09   | OR A,B           | A = A OR B                          |                                     |
+| 0x0A   | XOR A,B          | A = A^B                             |                                     |
+| 0x0B   | SHL A,B          | A = A << B                          |                                     |
+| 0x0C   | SHR A,B          | A = A >> B                          |                                     |
+| 0x0D   | IFE A,B          | execute next instruction if A==B    |                                     |
+| 0x0E   | IFN A,B          | if A != B            		  |                                     |
+| 0x0F   | IFG A,B          | if A > B            		  |                                     |
+| 0x10   | IFL A,B          | if A < B           		  |                                     |
+| 0x11   | JMP label        | jump to label            		  |                                     |
+| 0x12   | JTR label        | jump to label, PUSH IP+1 		  |                                     |
+| 0x13   | PUSH A           | pushes A on stack; --SP 		  |                                     |
+| 0x14   | POP A            | pops value from stack to A          |                                     |
+| 0x15   | RET              | POP IP                       	  |                                     |
+| 0x18   | END              | ends program execution              |                                     |
 |   -    | DAT w            | writes literal value to memory      |                                     |
 
 ### Assembly language
 
 #### Example no. 1
-
 ```
 SET A,0x1000
 SET B,[A]
+```
+
+#### Example no. 2
+```
+SET A,0
+SET C,10
+:loop
+	ADD A,1
+	IFN A,C
+		JMP loop
+END
+```
+
+#### Example no. 3
+```
+
+PUSH 0xF00D
+PUSH 0x8
+PUSH 0x1000
+JTR write_mem
+
+END
+
+:write_mem
+	POP Z
+
+	POP X 		; mem_address
+	POP C 		; count
+	POP Y 		; value
+
+	SET A,0
+	:loop
+		SET [X+A],Y
+		ADD A,1
+		IFN A,C
+			JMP loop
+
+	PUSH Z
+	RET
 ```
 
 #### Macros
