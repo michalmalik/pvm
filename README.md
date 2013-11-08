@@ -150,12 +150,12 @@ END
 ```
 PUSH 0xF00D
 PUSH 0x8
-PUSH mem_1
+PUSH [mem_1]
 JTR write_mem
 
 PUSH 0x8
-PUSH mem_1
-PUSH mem_2
+PUSH [mem_1]
+PUSH [mem_2]
 JTR copy_mem
 
 END
