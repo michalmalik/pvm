@@ -9,7 +9,18 @@
 
 ### Instruction specifications
 * **FLAGS** bit pattern: `0x00000OSE`
-* operation code is 2 bytes `0xDDDDDSSSSSOOOOOO`
---* destination - 5 bits (max. 0x1F)
---* source - 5 bits (max. 0x1F)
---* operation - 6 bits (max. 0x3F)
+* instruction opcode is 2 bytes `0xDDDDDSSSSSOOOOOO`
+* **destination** - 5 bits (max. 0x1F)
+* **source** - 5 bits (max. 0x1F)
+* **operation** - 6 bits (max. 0x3F)
+
+| opcode 	| detail	   | detail				    |
+| ------------- | ---------------- | -------------------------------------- |
+| 0x00 - 0x06	| register 	   | literal value of the register          |
+| 0x07 - 0x0D	| [register]	   | value at register 			    |
+| 0x0E - 0x14	| [register+A]     | value at register + A                  |
+| 0x15 - 0x1B	| [register+nextw] | value at register + next word          |
+| 0x1C		| nextw		   | literal value of next word             |
+| 0x1D		| [nextw]          | value at next word                     |
+| 0x1E		| SP               | literal value of stack pointer         |
+| 0x1F		| IP               | literal value of instruction pointer   |
