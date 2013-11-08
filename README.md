@@ -14,7 +14,7 @@
 * **source** - 5 bits (max. 0x1F)
 * **operation** - 6 bits (max. 0x3F)
 
-# Opcodes for destination,source
+### Opcodes for destination,source
 
 | opcode 	| detail	   | description				    |
 | ------------- | ---------------- | -------------------------------------- |
@@ -27,7 +27,7 @@
 | 0x1E		| SP               | literal value of stack pointer         |
 | 0x1F		| IP               | literal value of instruction pointer   |
 
-# Instruction set
+### Instruction set
 
 | OP     | INS              | detail                              | description                         |
 | ------ | ---------------- | ----------------------------------- | ----------------------------------- |
