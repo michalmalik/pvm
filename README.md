@@ -49,8 +49,8 @@
 | 0x10   | JNE offset       | jump to offset if E == 0            |                                     |
 | 0x11   | JG offset        | jump to offset if S == 1            |                                     |
 | 0x12   | JL offset        | jump to offset if S == 0            |                                     |
-| 0x13   | JGE offset       | jump to offset if (E == 1 | S == 1) |                                     |
-| 0x14   | JLE offset       | jump to offset if (E == 1 | S == 0) |                                     |
+| 0x13   | JGE offset       | jump to offset if (E == 1 OR S == 1)|                                     |
+| 0x14   | JLE offset       | jump to offset if (E == 1 OR S == 0)|                                     |
 | 0x15   | JTR offset       | jump to routine ; PUSH IP+1         |                                     |
 | 0x16   | RET              | POP IP ; jump                       |                                     |
 | 0x17   | PUSH A           | pushes A on stack ; --SP            |                                     |
