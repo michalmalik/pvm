@@ -4,7 +4,7 @@ pvm
 a 16-bit virtual machine, 0x8000 words of memory available (0x10000 bytes) with its own assembly language
 
 
-```
+```c
 struct file_asm {
 	FILE *fp;
 	char i_fn[64];
