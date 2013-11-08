@@ -1,8 +1,8 @@
 ### PCPU Specifications
 * **16-bit** CPU
 * **0x8000 words** of memory available (0x10000 bytes)
-* 7 registers (A, B, C, D, X, Y, Z), stack pointer (SP), instruction pointer (IP or program counter)
-* 3 flags (E, S, O) in FLAGS register
+* **7 registers** (A, B, C, D, X, Y, Z), **stack pointer** (SP), **instruction pointer** (IP or program counter)
+* **3 flags** (E, S, O) in FLAGS register
 * instruction takes maximum **6 bytes** 
 * **0x2000 words** global stack size, start `0x7FFF`, goes down
 * **0x500 words** screen size (80x32 bytes), start `0x0`
@@ -16,7 +16,7 @@
 
 ### Opcodes for destination,source
 
-| opcode 	| detail	   | description				    |
+| opcode 	| detail	   | description	                    |
 | ------------- | ---------------- | -------------------------------------- |
 | 0x00 - 0x06	| register 	   | literal value of the register          |
 | 0x07 - 0x0D	| [register]	   | value at register 			    |
@@ -57,3 +57,35 @@
 | 0x18   | POP A            | pops [SP] to A ; ++SP               |                                     |
 | 0x19   | END              | ends program execution              |                                     |
 |   -    | DAT w            | writes literal value to memory      |                                     |
+
+### Assembly language
+
+#### Example no. 1
+
+```
+SET A,0x1000
+SET B,[A]
+```
+
+#### Macros
+
+##### data
+
+###### data.asm
+```
+.const_A        DAT     0x1000
+```
+
+##### include
+
+###### data.asm
+```
+.const_A        DAT     0x1000
+```
+
+###### test.asm
+```
+SET A,const_A
+SET B,[A]
+SET [B],0xF00D
+```
