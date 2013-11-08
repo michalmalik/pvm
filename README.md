@@ -79,7 +79,6 @@ END
 
 #### Example no. 3
 ```
-
 PUSH 0xF00D
 PUSH 0x8
 PUSH 0x1000
@@ -87,6 +86,46 @@ JTR write_mem
 
 END
 
+:write_mem
+	POP Z
+
+	POP X 		; mem_address
+	POP C 		; count
+	POP Y 		; value
+
+	SET A,0
+	:loop
+		SET [X+A],Y
+		ADD A,1
+		IFN A,C
+			JMP loop
+
+	PUSH Z
+	RET
+```
+
+#### Example no. 4
+
+##### test.asm
+
+```
+PUSH 0xF00D
+PUSH 0x8
+PUSH 0x1000
+JTR write_mem
+
+PUSH 0xBEAF
+PUSH 0x8
+PUSH 0x2000
+JTR write_mem
+
+END
+
+#include "memory.asm"
+```
+
+##### memory.asm
+```
 :write_mem
 	POP Z
 
