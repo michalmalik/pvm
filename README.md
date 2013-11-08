@@ -88,4 +88,7 @@ SET B,[A]
 SET A,const_A
 SET B,[A]
 SET [B],0xF00D
+END
+
+#include "data.asm"
 ```
