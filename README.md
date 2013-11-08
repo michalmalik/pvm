@@ -74,6 +74,8 @@ SET B,[A]
 ###### data.asm
 ```
 .const_A        DAT     0x1000
+.const_B        DAT     "Eggs"
+.const_C        DAT     "On a Plane",0xF00D
 ```
 
 ##### include
