@@ -94,27 +94,34 @@ static u16 *getopr(struct cpu *p, u8 b, u16 *w) {
         }
 
         switch(b) {
+                // register
                 case 0x00: case 0x01: case 0x02: case 0x03:
                 case 0x04: case 0x05: case 0x06: case 0x07:
                         o = p->r+b;
                         break;
+                // [register]
                 case 0x08: case 0x09: case 0x0A: case 0x0B:
                 case 0x0C: case 0x0D: case 0x0E: case 0x0F:
                         o = p->mem+p->r[b-0x08];
                         break;
+                // [register+nextw]
                 case 0x10: case 0x11: case 0x12: case 0x13:
                 case 0x14: case 0x15: case 0x16: case 0x17:
                         o = p->mem+(p->r[b-0x10]+*w);
                         break;
+                // nextw
                 case 0x18:
                         o = w;
                         break;
+                // [nextw]
                 case 0x19:
                         o = p->mem+*w;
                         break;
+                // SP
                 case 0x1A:
                         o = &p->sp;
                         break;
+                // IP
                 case 0x1B:
                         o = &p->ip;
                         break;
@@ -153,74 +160,97 @@ static void step(struct cpu *p) {
         wc = word(*(p->mem+p->ip));
 
         switch(o) {
+                // SET
                 case 0: *d = *s; break;
+                // ADD
                 case 1: {
                         if(*s+*d>0xFFFF) p->of = 1; 
                         *d = (*s+*d)&0xffff; 
                         break;
                 }
+                // SUB
                 case 2: *d = (*d-*s)&0xffff; break;
+                // MUL
                 case 3: *d = (*s*(*d))&0xffff; break;
+                // DIV
                 case 4: {
                         *d = (*d/(*s));
                         p->r[3] = (*d)%(*s);
                 } break;
+                // MOD
                 case 5: {
                         *d = (*d)%(*s);
                 } break;
+                // NOT
                 case 6: {
                         *d = ~(*d);
                         break;
                 }
+                // AND
                 case 7: {
                         *d = (*d)&(*s);
                 } break;
+                // OR
                 case 8: {
                         *d = (*d)|(*s);
                 } break;
+                // XOR
                 case 9: {
                         *d = (*d)^(*s);
                 } break;
+                // SHL
                 case 0x0A: {
                         *d = ((*d)<<(*s))&0xffff;
                 } break;
+                // SHR
                 case 0x0B: {
                         *d = ((*d)>>(*s))&0xffff;
                 } break;
+                // IFE
                 case 0x0C: {
                         if(*d != *s) p->ip += wc;
                 } break;
+                // IFN
                 case 0x0D: {
                         if(*d == *s) p->ip += wc;
                 } break;
+                // IFG
                 case 0x0E: {
                         if(*d <= *s) p->ip += wc;
                 } break;
+                // IFL
                 case 0x0F: {
                         if(*d >= *s) p->ip += wc;
                 } break;
+                // IFGE
                 case 0x10: {
                         if(*d < *s) p->ip += wc; 
                 } break;
+                // IFLE
                 case 0x11: {
                         if(*d > *s) p->ip += wc;
                 }
+                // JMP
                 case 0x12: {
                         p->ip = *d;
                 } break;
+                // JTR
                 case 0x13: {
                         // push IP on stack
                         p->mem[p->sp--] = p->ip;
                         // jump
                         p->ip = *d; 
                 } break;
+                // PUSH
                 case 0x14: {
                         p->mem[p->sp--] = *d;
                 } break;
+                // POP
                 case 0x15: {
                         *d = p->mem[++p->sp];
                         p->mem[p->sp] = 0;
                 } break;
+                // RET
                 case 0x16: {
                         // pop IP from stack
                         p->ip = p->mem[++p->sp];
