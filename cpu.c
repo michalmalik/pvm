@@ -16,10 +16,8 @@ struct cpu {
         u16 sp, ip;
         u8 of:1;
         u16 mem[0x8000];
-        int end;
 };
 
-static FILE *debug_fp = NULL;
 static char *i_fn = NULL;
 static char *o_fn = NULL;
 
@@ -58,18 +56,6 @@ static void memory_dmp(struct cpu *p, const char *fn) {
 }
 
 static void debug(struct cpu *p) {
-        /*fprintf(debug_fp, "%2s: 0x%04X\n", "A", p->r[0]);
-        fprintf(debug_fp, "%2s: 0x%04X\n", "B", p->r[1]);
-        fprintf(debug_fp, "%2s: 0x%04X\n", "C", p->r[2]);
-        fprintf(debug_fp, "%2s: 0x%04X\n", "D", p->r[3]);
-        fprintf(debug_fp, "%2s: 0x%04X\n", "X", p->r[4]);
-        fprintf(debug_fp, "%2s: 0x%04X\n", "Y", p->r[5]);
-        fprintf(debug_fp, "%2s: 0x%04X\n", "Z", p->r[6]);
-        fprintf(debug_fp, "%2s: 0x%04X\n", "SP", p->sp);
-        fprintf(debug_fp, "%2s: 0x%04X\n", "IP", p->ip);
-        fprintf(debug_fp, "%2s: 0x%02X\n", "OF", p->of);
-        fprintf(debug_fp, "\n");*/
-
         printf("%2s: 0x%04X\n", "A", p->r[0]);
         printf("%2s: 0x%04X\n", "B", p->r[1]);
         printf("%2s: 0x%04X\n", "C", p->r[2]);
@@ -153,23 +139,23 @@ static void step(struct cpu *p) {
         char out[128];
         zero(out);
         disassemble(p->mem, p->ip, out);
-        fprintf(debug_fp, "%s", out);
         printf("%s", out);
 
         u16 op = p->mem[p->ip++];
         u8 o = 0;
         u16 *d = 0, *s = 0, w = 0;
+        u16 wc = 0;
 
         o = op&0x3f;
         d = getopr(p, op>>11, &w);
         s = getopr(p, (op>>6)&0x1f, &w);
 
+        wc = word(*(p->mem+p->ip));
+
         switch(o) {
                 case 0: *d = *s; break;
                 case 1: {
-                        if(*s+*d>0xFFFF) {
-                                p->of = 1;
-                        } 
+                        if(*s+*d>0xFFFF) p->of = 1; 
                         *d = (*s+*d)&0xffff; 
                         break;
                 }
@@ -202,40 +188,43 @@ static void step(struct cpu *p) {
                         *d = ((*d)>>(*s))&0xffff;
                 } break;
                 case 0x0C: {
-                        if(*d != *s) p->ip += word(*(p->mem+p->ip));
+                        if(*d != *s) p->ip += wc;
                 } break;
                 case 0x0D: {
-                        if(*d == *s) p->ip += word(*(p->mem+p->ip));
+                        if(*d == *s) p->ip += wc;
                 } break;
                 case 0x0E: {
-                        if(*d < *s) p->ip += word(*(p->mem+p->ip));
+                        if(*d <= *s) p->ip += wc;
                 } break;
                 case 0x0F: {
-                        if(*d > *s) p->ip += word(*(p->mem+p->ip));
+                        if(*d >= *s) p->ip += wc;
                 } break;
                 case 0x10: {
-                        p->ip = *d;
+                        if(*d < *s) p->ip += wc; 
                 } break;
                 case 0x11: {
+                        if(*d > *s) p->ip += wc;
+                }
+                case 0x12: {
+                        p->ip = *d;
+                } break;
+                case 0x13: {
                         // push IP on stack
                         p->mem[p->sp--] = p->ip;
                         // jump
                         p->ip = *d; 
                 } break;
-                case 0x12: {
+                case 0x14: {
                         p->mem[p->sp--] = *d;
                 } break;
-                case 0x13: {
+                case 0x15: {
                         *d = p->mem[++p->sp];
                         p->mem[p->sp] = 0;
                 } break;
-                case 0x14: {
+                case 0x16: {
                         // pop IP from stack
                         p->ip = p->mem[++p->sp];
                         p->mem[p->sp] = 0;
-                } break;
-                case 0x15: {
-                        p->end = 1;
                 } break;
                 default: break;
         }
@@ -255,10 +244,6 @@ int main(int argc, char **argv) {
                 error("%s <program> <memory_dump>", argv[0]);
         }
 
-        if((debug_fp = fopen("debug", "w")) == NULL) {
-                error("debug file does not exist");
-        }
-
         i_fn = argv[1];
         o_fn = argv[2];
 
@@ -269,7 +254,6 @@ int main(int argc, char **argv) {
         load(&p, i_fn);
 
         p.sp = 0x7FFF;
-        p.end = 0;
 
         int c = 0;
         int w1 = 0, w2 = 0;
@@ -285,10 +269,9 @@ int main(int argc, char **argv) {
                         printf("([0x%04X] = %04X) -> %04X\n", w1, p.mem[w1], w2);
                         p.mem[w1] = w2;
                 }
-        } while(!p.end && (c = getchar()));
+        } while(p.mem[p.ip] && (c = getchar()));
 
         memory_dmp(&p, o_fn);
 
-        fclose(debug_fp);
 	return 0;
 }
