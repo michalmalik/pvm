@@ -1,6 +1,6 @@
 ### PCPU Specifications
 * **16-bit** CPU
-* **0x8000 word** memory
+* **0x8000 words**
 * **8 16-bit general purpose registers** (A, B, C, D, X, Y, Z, J), **stack pointer** (SP), **instruction pointer** (IP)
 * **OF** (overflow) flag
 * **0x2000 words** global stack size, start `0x7FFF`, goes down
@@ -29,7 +29,7 @@
 | 0x1A		| SP               | literal value of stack pointer         |
 | 0x1B		| IP               | literal value of instruction pointer   |
 
-### Opcode for operation operand (instruction set)
+### Opcodes for operation operand (instruction set)
 
 | OP     | INS              | detail                              | description                         |
 | :----: | ---------------- | ----------------------------------- | ----------------------------------- |
