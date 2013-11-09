@@ -176,7 +176,8 @@ int init_asm(const char *i_fn) {
 
 	if((fs.fp = fopen(i_fn, "r")) == NULL) {
 		if(cf->fp) {
-			die("%s: error: line %d, file \"%s\" does not exist \nin '%s'", cf->i_fn, cf->linenumber, fs.i_fn, cf->linebuffer);
+			die("%s: error: line %d, file \"%s\" does not exist \nin '%s'", cf->i_fn, 
+				cf->linenumber, fs.i_fn, cf->linebuffer);
 		} else {
 			die("error: file \"%s\" does not exist", fs.i_fn);
 		}
@@ -258,7 +259,10 @@ void fix_symbols() {
 	struct fix *f = NULL;
 	for(f = fixes; f; f = f->next) {
 		s = get_symbol(f->name);
-		if(!s) die("%s: error: line %d, symbol \"%s\" is not defined, \"%s\"", f->fn, f->linenumber, f->name, f->linebuffer);
+		if(!s) {
+			die("%s: error: line %d, symbol \"%s\" is not defined, \"%s\"", f->fn, f->linenumber,
+				 f->name, f->linebuffer);
+		}
 		MEM[f->ip] = s->ip+f->num_value;
 	}
 }
