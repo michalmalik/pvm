@@ -8,7 +8,7 @@
 * instruction takes maximum **6 bytes** 
 
 ### Instruction specifications
-* instruction opcode is 16 bits `0xDDDDDSSSSSOOOOOO`, might be followed by two 16-bit words
+* instruction is 16 bits `0xDDDDDSSSSSOOOOOO`, might be followed by two 16-bit words
 
 | operand   	     | bits   | max value  |
 | ------------------ | :----: | :--------: |
