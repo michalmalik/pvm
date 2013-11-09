@@ -4,7 +4,6 @@
 * **8 16-bit general purpose registers** (A, B, C, D, X, Y, Z, J), **stack pointer** (SP), **instruction pointer** (IP)
 * **OF** (overflow) flag
 * **0x2000 words** global stack size, start `0x7FFF`, goes down
-* **0x500 words** screen size (80x32 bytes), start `0x0`
 * instruction takes maximum **6 bytes** 
 
 ### Instruction specifications
@@ -31,30 +30,31 @@
 
 ### Opcodes for operation operand (instruction set)
 
-| OP     | INS              | detail                              | description                         |
-| :----: | ---------------- | ----------------------------------- | ----------------------------------- |
-| 0x00   | SET A,B          | A = B                               |                                     |
-| 0x01   | ADD A,B          | A = A+B ; sets OF flag              |                                     |               
-| 0x02   | SUB A,B          | A = A-B ; sets OF flag              |                                     |
-| 0x03   | MUL A,B          | A = A*B ; sets OF flag              |                                     |
-| 0x04   | DIV A,B          | A = A/B ; D = A%B                   |                                     |
-| 0x05   | MOD A,B          | A = A%B                   	  |                                     |
-| 0x06   | NOT A            | A = ~(A)                            |                                     |
-| 0x08   | AND A,B          | A = A&B                             |                                     |
-| 0x09   | OR A,B           | A = A OR B                          |                                     |
-| 0x0A   | XOR A,B          | A = A^B                             |                                     |
-| 0x0B   | SHL A,B          | A = A << B                          |                                     |
-| 0x0C   | SHR A,B          | A = A >> B                          |                                     |
-| 0x0D   | IFE A,B          | execute next instruction if A==B    |                                     |
-| 0x0E   | IFN A,B          | if A!=B            		  |                                     |
-| 0x0F   | IFG A,B          | if A>B            		  |                                     |
-| 0x10   | IFL A,B          | if A<B           		   	  |                                     |
-| 0x11   | JMP label        | jump to label            		  |                                     |
-| 0x12   | JTR label        | jump to label, PUSH IP+1 		  |                                     |
-| 0x13   | PUSH A           | pushes A on stack; --SP 		  |                                     |
-| 0x14   | POP A            | pops value from stack to A          |                                     |
-| 0x15   | RET              | POP IP                       	  |                                     |
-| 0x16   | END              | ends program execution              |                                     |
+| OP     | INS              | description                              		     | cycles  |
+| :----: | ---------------- | ------------------------------------------------------ | :-----: | 
+| 0x00   | SET A,B          | A = B                               		     | 1-3     |
+| 0x01   | ADD A,B          | A = A+B ; sets OF flag              		     | 2-3     |               
+| 0x02   | SUB A,B          | A = A-B ; sets OF flag              		     | 2-3     |
+| 0x03   | MUL A,B          | A = A*B ; sets OF flag              		     | 2-3     |
+| 0x04   | DIV A,B          | A = A/B ; D = A%B                   		     | 2-3     |
+| 0x05   | MOD A,B          | A = A%B                   	  		     |         |
+| 0x06   | NOT A            | A = ~(A)                            		     |         |
+| 0x07   | AND A,B          | A = A&B                             		     |         |
+| 0x08   | OR A,B           | A = A OR B                          		     |         |
+| 0x09   | XOR A,B          | A = A^B                             		     |         |
+| 0x0A   | SHL A,B          | A = A << B                          		     |         |
+| 0x0B   | SHR A,B          | A = A >> B                          		     |         |
+| 0x0C   | IFE A,B          | execute next instruction if A==B    		     |         |
+| 0x0D   | IFN A,B          | if A!=B            		  		     |         |
+| 0x0E   | IFG A,B          | if A>B            		  		     |         |
+| 0x0F   | IFL A,B          | if A<B           		   	  		     |         |
+| 0x10   | IFGE A,B         | if A>=B                             		     |         |
+| 0x11   | IFLE A,B         | if A<=B                             		     |         |
+| 0x12   | JMP label        | jump to label            		  		     |         |
+| 0x13   | JTR label        | push IP of next instruction on stack, jump to label    |	       |
+| 0x14   | PUSH A           | push A on stack, SP--	  		     	     |         |
+| 0x15   | POP A            | pops value from stack to A, SP++         		     |         |
+| 0x16   | RET              | pops value from stack to IP                 	     |         |
 
 ### Assembly language
 
@@ -62,7 +62,6 @@
 ```
 SET A,0x1000
 SET B,[A]
-END
 ```
 
 #### Example no. 2
@@ -73,17 +72,11 @@ SET C,10
 	ADD A,1
 	IFN A,C
 		JMP loop
-END
 ```
 
 #### Example no. 3
 ```
-PUSH 0xF00D
-PUSH 0x8
-PUSH 0x1000
-JTR write_mem
-
-END
+JMP start
 
 .mem_address 	DAT 	0
 
@@ -104,12 +97,25 @@ END
 			JMP loop
 	PUSH Z
 	RET
+
+:start
+
+PUSH 0xF00D
+PUSH 0x8
+PUSH 0x1000
+JTR write_mem
 ```
 
 #### Example no. 4
 
 ##### test.asm
 ```
+JMP start
+
+#include "memory.asm"
+
+:start
+
 PUSH 0xF00D		; value
 PUSH 0x8 		; count
 PUSH 0x1000 		; mem_address
@@ -119,10 +125,6 @@ PUSH 0xBEAF 		; value
 PUSH 0x8 		; count
 PUSH 0x2000 		; mem_address
 JTR write_mem
-
-END
-
-#include "memory.asm"
 ```
 
 ##### memory.asm
@@ -153,6 +155,15 @@ END
 
 ##### test.asm
 ```
+JMP start
+
+#include "memory.asm"
+
+.mem_1 	DAT 	0x1000
+.mem_2	DAT 	0x2000
+
+:start
+
 PUSH 0xF00D
 PUSH 0x8
 PUSH [mem_1]
@@ -162,16 +173,10 @@ PUSH 0x8
 PUSH [mem_1]
 PUSH [mem_2]
 JTR copy_mem
-
-END
-
-.mem_1 	DAT 	0x1000
-.mem_2	DAT 	0x2000
 ```
 
 ##### memory.asm
 ```
-
 .dst_addr	DAT 	0
 .src_addr 	DAT 	0
 
@@ -214,15 +219,37 @@ END
 	RET
 ```
 
+#### Example no. 6
+```
+JMP start
+
+; struct Person
+#define PERSON_AGE		0
+#define PERSON_HEIGHT		1
+
+#define ST_PERSON_MICHAL	0x1000
+
+:start
+
+SET A,ST_PERSON_MICHAL
+SET [A+PERSON_AGE],0x12
+SET [A+PERSON_HEIGHT],0xB4
+```
+
 #### Macros
 
-##### data
+##### define
 
 ###### data.asm
 ```
-.const_A        DAT     0x1000
-.const_B        DAT     "Eggs"
-.const_C        DAT     "On a Plane",0,0xF00D
+JMP start
+
+#define MEM_ADDR 	0x1000
+
+:start
+
+SET [MEM_ADDR],0xF00D
+PUSH [MEM_ADDR]
 ```
 
 ##### include
@@ -234,10 +261,13 @@ END
 
 ###### test.asm
 ```
+JMP start
+
+#include "data.asm"
+
+:start
+
 SET A,const_A
 SET B,[A]
 SET [B],0xF00D
-END
-
-#include "data.asm"
 ```
