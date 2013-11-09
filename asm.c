@@ -10,8 +10,16 @@ typedef unsigned short u16;
 #define zero(a)     (memset((a),0,sizeof((a))))
 #define count(a)    (sizeof((a))/sizeof((a)[0]))
 
+#define DEFINES_LIMIT	64
+
 static u16 MEM[0x8000];
 static u16 IP = 0;
+
+// TODO: Take strings as values for defines
+struct cdefine {
+	char name[128];
+	u16 value;
+};
 
 struct file_asm {
 	FILE *fp;
@@ -25,6 +33,11 @@ struct file_asm {
 
 	int token;
 	u16 tokennum;
+
+	// TODO: Delete counter from main struct
+	u16 defn;
+	// TODO: More defines
+	struct cdefine defines[DEFINES_LIMIT];
 };
 
 struct symbol {
@@ -38,10 +51,25 @@ struct symbol {
 	struct file_asm f;
 };
 
-static struct file_asm *cf = NULL;
+struct fix {
+	struct fix *next;
+
+	char fn[64];
+	char name[128];
+	char str_value[128];
+	char linebuffer[256];
+
+	u16 ip;
+	u16 num_value;
+
+	int linenumber;
+};
+
+static struct file_asm mf;
+static struct file_asm *cf = &mf;
 
 static struct symbol *symbols = NULL;
-static struct symbol *fixes = NULL;
+static struct fix *fixes = NULL;
 
 static char *o_fn = NULL;
 static char *sym_fn = NULL;
@@ -52,8 +80,8 @@ static const char *tn[] = {
 	"SET",
 	"ADD", "SUB", "MUL", "DIV", "MOD",
 	"NOT", "AND", "OR", "XOR", "SHL", "SHR",
-	"IFE", "IFN", "IFG", "IFL", "JMP", "JTR",
-	"PUSH", "POP", "RET", "END", "DAT", 
+	"IFE", "IFN", "IFG", "IFL", "IFGE", "IFLE", "JMP", "JTR",
+	"PUSH", "POP", "RET", "DAT", 
 	".", "#", ":", ",", "[", "]", "+",
 	"(NUMBER)", "(STRING)", "(QUOTED STRING)", "(EOF)"
 };
@@ -64,13 +92,27 @@ enum _tokens {
 	tSET, 
 	tADD, tSUB, tMUL, tDIV, tMOD,
 	tNOT, tAND, tOR, tXOR, tSHL, tSHR,
-	tIFE, tIFN, tIFG, tIFL, tJMP, tJTR,
-	tPUSH, tPOP, tRET, tEND, tDAT,
+	tIFE, tIFN, tIFG, tIFL, tIFGE, tIFLE, tJMP, tJTR,
+	tPUSH, tPOP, tRET, tDAT,
 	tDOT, tHASH, tCOLON, tCOMMA, tBS, tBE, tPLUS,
 	tNUM, tSTR, tQSTR, tEOF
 };
 
 #define LASTTOKEN	tEOF
+
+void die(const char *format, ...) {
+	char buf[512];
+	va_list va;
+
+	zero(buf);
+
+	va_start(va, format);
+
+	vsprintf(buf, format, va);
+
+	puts(buf);
+	exit(1);
+}
 
 void error(const char *format, ...) {
 	char buf_1[512];
@@ -82,7 +124,7 @@ void error(const char *format, ...) {
 
 	va_start(va, format);
 
-	strcat(buf_1, "error: ");
+	sprintf(buf_1, "%s: line %d, error: ", cf->i_fn, cf->linenumber);
 	vsprintf(buf_2, format, va);
 	strcat(buf_1, buf_2);	
 
@@ -90,23 +132,57 @@ void error(const char *format, ...) {
 	exit(1);
 }
 
-int init_asm(struct file_asm *fs, char *i_fn) {
-	fs->fp = NULL;
+void cleanstr(char *str) {
+	size_t i;
+	for(i = 0; i < strlen(str); i++) {
+		if(str[i]=='\n') str[i]='\0';
+	}
+}
+
+void clean_fs(struct file_asm *fs) {
+	fclose(fs->fp);
 	zero(fs->i_fn);
 	zero(fs->tokenstr);
 	zero(fs->linebuffer);
-
 	fs->linenumber = 0;
-
-	fs->lineptr = fs->linebuffer;
+	fs->lineptr = NULL;
 	fs->token = 0;
 	fs->tokennum = 0;
+}
 
-	strcpy(fs->i_fn, i_fn);
+int init_asm(const char *i_fn) {
+	struct file_asm fs;
+	size_t i;
 
-	if((fs->fp = fopen(i_fn, "r")) == NULL) {
-		error("file \"%s\" does not exist", fs->i_fn);
+	fs.fp = NULL;
+	zero(fs.i_fn);
+	zero(fs.tokenstr);
+	zero(fs.linebuffer);
+
+	fs.linenumber = 0;
+
+	fs.lineptr = fs.linebuffer;
+	fs.token = 0;
+	fs.tokennum = 0;
+
+	fs.defn = 0;
+
+	for(i = 0; i < count(fs.defines); i++) {
+		zero(fs.defines[i].name);
+		fs.defines[i].value = 0;
 	}
+
+	strcpy(fs.i_fn, i_fn);
+
+	if((fs.fp = fopen(i_fn, "r")) == NULL) {
+		if(cf->fp) {
+			die("%s: error: line %d, file \"%s\" does not exist \nin '%s'", cf->i_fn, cf->linenumber, fs.i_fn, cf->linebuffer);
+		} else {
+			die("error: file \"%s\" does not exist", fs.i_fn);
+		}
+	}
+
+	*cf = fs;
 
 	return 1;
 }
@@ -116,7 +192,7 @@ void output(const char *fn) {
 	size_t i;
 
 	if((fp = fopen(fn, "wb")) == NULL) {
-		error("couldn't open/write to \"%s\"", fn);
+		die("error: couldn't open/write to \"%s\"", fn);
 	}
 
 	for(i = 0; i < count(MEM); i++) {
@@ -148,16 +224,23 @@ void add_symbol(const char *name, u16 ip, u16 *num_value, char *str_value) {
 }
 
 void to_fix(const char *name, u16 ip, u16 *num_value, char *str_value) {
-	struct symbol *f = malloc(sizeof(struct symbol));
+	struct fix *f = malloc(sizeof(struct fix));
+	size_t i;
 
 	zero(f->name);
 	zero(f->str_value);
+	zero(f->fn);
+	zero(f->linebuffer);
 
 	f->ip = ip;
 	strcpy(f->name, name);
+
+	strcpy(f->fn, cf->i_fn);
+	f->linenumber = cf->linenumber;
+	strcpy(f->linebuffer, cf->linebuffer);
+
 	if(num_value) f->num_value = *num_value;
 	if(str_value) strcpy(f->str_value, str_value);
-	f->f = *cf;
 	f->next = fixes;
 	fixes = f;
 }
@@ -171,10 +254,11 @@ struct symbol *get_symbol(const char *name) {
 }
 
 void fix_symbols() {
-	struct symbol *f = NULL, *s = NULL;
+	struct symbol *s = NULL;
+	struct fix *f = NULL;
 	for(f = fixes; f; f = f->next) {
 		s = get_symbol(f->name);
-		if(!s) error("symbol \"%s\" is not defined", f->name);
+		if(!s) die("%s: error: line %d, symbol \"%s\" is not defined, \"%s\"", f->fn, f->linenumber, f->name, f->linebuffer);
 		MEM[f->ip] = s->ip+f->num_value;
 	}
 }
@@ -184,7 +268,7 @@ void dump_symbols(const char *fn) {
 	struct symbol *s = NULL;
 
 	if((fp = fopen(fn, "wb")) == NULL) {
-		error("couldn't open/write to \"%s\"", fn);
+		die("error: couldn't open/write to \"%s\"", fn);
 	}
 
 	for(s = symbols; s; s = s->next) {
@@ -195,6 +279,28 @@ void dump_symbols(const char *fn) {
 	fclose(fp);
 }
 
+void add_define(const char *name, u16 value) {
+	size_t i;
+	if(cf->defn >= DEFINES_LIMIT) error("DEFINES_LIMIT(%d) reached for this file", DEFINES_LIMIT);
+
+	for(i = 0; i < DEFINES_LIMIT; i++) {
+		if(!strcmp(cf->defines[i].name, name)) error("define \"%s\" already defined", name);
+	}
+
+	strcpy(cf->defines[cf->defn].name, name);
+	cf->defines[cf->defn].value = value;
+
+	cf->defn++;
+}
+
+struct cdefine *get_define(const char *name) {
+	size_t i;
+	for(i = 0; i < DEFINES_LIMIT; i++) {
+		if(!strcmp(cf->defines[i].name, name)) return &cf->defines[i];
+	}
+	return NULL;
+}
+
 int next_token() {
 	char c = 0, *x = 0;
 	zero(cf->tokenstr);
@@ -203,6 +309,7 @@ next_line:
 		if(feof(cf->fp)) return tEOF;
 		if(fgets(cf->linebuffer, 256, cf->fp) == 0) return tEOF;
 		cf->lineptr = cf->linebuffer;
+		cleanstr(cf->linebuffer);
 		cf->linenumber++;
 	}
 
@@ -249,7 +356,7 @@ next_line:
 				*x = 0;
 				int i;
 				for(i = 0; i < LASTTOKEN; i++) {
-					if(!strcmp(tn[i], cf->tokenstr)) {
+					if(!strcasecmp(tn[i], cf->tokenstr)) {
 						return i;
 					}
 				}
@@ -309,8 +416,13 @@ void assemble_o(u16 *o, int *v) {
 			if(sym) {
 				*v = sym->ip;
 			} else {
-				to_fix(buf, IP+1, NULL, NULL);
-				*v = 0;
+				struct cdefine *d = get_define(buf);
+				if(d) {
+					*v = d->value;
+				} else {
+					to_fix(buf, IP+1, NULL, NULL);
+					*v = 0;
+				}
 			}
 			break;
 		}
@@ -342,8 +454,13 @@ void assemble_o(u16 *o, int *v) {
 					if(sym) {
 						*v = sym->ip;
 					} else {
-						to_fix(buf, IP+1, NULL, NULL);
-						*v = 0;
+						struct cdefine *d = get_define(buf);
+						if(d) {
+							*v = d->value;
+						} else {
+							to_fix(buf, IP+1, NULL, NULL);
+							*v = 0;
+						}
 					}
 				} else {
 					error("expected [register+nextw]");
@@ -377,7 +494,12 @@ void assemble_o(u16 *o, int *v) {
 					if(sym) {
 						*v += sym->ip;
 					} else {
-						to_fix(buf, IP+1, (u16 *)v, NULL);
+						struct cdefine *d = get_define(buf);
+						if(d) {
+							*v += d->value;
+						} else {
+							to_fix(buf, IP+1, (u16 *)v, NULL);
+						}
 					}
 				} else {
 					error("expected value");
@@ -399,6 +521,19 @@ void assemble_o(u16 *o, int *v) {
 					*v += cf->tokennum;
 				} else if(cf->token <= 7) {
 					*o = (cf->token&0x7)+0x10;
+				} else if(cf->token == tSTR) {
+					char buf_2[128];
+					zero(buf_2);
+					strcpy(buf_2, cf->tokenstr);
+					struct symbol *s = get_symbol(buf_2);
+					if(s) {
+						*v += s->ip;
+					} else {
+						struct cdefine *d = get_define(buf_2);
+						if(d) {
+							*v += d->value;	
+						}
+					}
 				} else {
 					error("expected value");
 				}
@@ -406,9 +541,14 @@ void assemble_o(u16 *o, int *v) {
 			}
 			struct symbol *sym = get_symbol(buf);
 			if(sym) {
-				*v = sym->ip;
+				*v += sym->ip;
 			} else {
-				to_fix(buf, IP+1, (u16 *)v, NULL);
+				struct cdefine *d = get_define(buf);
+				if(d) {
+					*v += d->value;
+				} else {
+					to_fix(buf, IP+1, (u16 *)v, NULL);
+				}
 			}
 
 			if(cf->token != tBE) {
@@ -437,12 +577,13 @@ void assemble_i(int inst, u16 d, u16 s, int v1, int v2) {
 		case tIFN: o = 0x0D; break;
 		case tIFG: o = 0x0E; break;
 		case tIFL: o = 0x0F; break;
-		case tJMP: o = 0x10; break;
-		case tJTR: o = 0x11; break;
-		case tPUSH: o = 0x12; break;
-		case tPOP: o = 0x13; break;
-		case tRET: o = 0x14; break;
-		case tEND: o = 0x15; break;
+		case tIFGE: o = 0x10; break;
+		case tIFLE: o = 0x11; break;
+		case tJMP: o = 0x12; break;
+		case tJTR: o = 0x13; break;
+		case tPUSH: o = 0x14; break;
+		case tPOP: o = 0x15; break;
+		case tRET: o = 0x16; break;
 	}
 	MEM[IP++] = (u16)(o|(s<<6)|(d<<11));
 	if(v1 != -1) MEM[IP++] = v1&0xFFFF;		
@@ -494,17 +635,26 @@ again:
 			}
 			case tHASH: {
 				expect(tSTR);
-				if(!strcmp(cf->tokenstr, "include")) {			
+				if(!strcasecmp(cf->tokenstr, "include")) {			
 					expect(tQSTR);
 
 					struct file_asm tf = *cf;
-					struct file_asm nf;
-					
-					init_asm(&nf, cf->tokenstr);
 
-					cf = &nf;
+					char buf[64];
+					zero(buf);
+					strcpy(buf, cf->tokenstr);
+
+					init_asm(buf);
 					assemble();
 					*cf = tf;
+				// TODO: Compile-time symbols
+				} else if(!strcasecmp(cf->tokenstr, "define")) {
+					char name[128];
+					zero(name);
+					expect(tSTR);
+					strcpy(name, cf->tokenstr);
+					expect(tNUM);
+					add_define(name, cf->tokennum);
 				}
 				break;
 			}
@@ -531,6 +681,8 @@ again:
 
 					assemble_dat();
 					goto again;
+				} else {
+					error("expected value after DAT");
 				}
 				break;
 			}
@@ -539,7 +691,8 @@ again:
 			case tADD: case tSUB: case tMUL: case tDIV:
 			case tMOD: case tAND: case tOR: case tXOR:
 			case tSHL: case tSHR: 
-			case tIFE: case tIFN: case tIFG: case tIFL: 
+			case tIFE: case tIFN: case tIFG: case tIFL:
+			case tIFGE: case tIFLE: 
 			{
 				assemble_o(&d, &v1);
 				expect(tCOMMA);				
@@ -558,24 +711,20 @@ again:
 				assemble_i(t, 0, 0, -1, -1);
 				break;
 			}
-			case tEND: {
-				assemble_i(t, 0, 0, -1, -1);
-				break;
-			}
 			default: {
-				error("invalid instruction, line %d, \"%s\"", cf->linenumber, cf->tokenstr);
+				error("invalid instruction \"%s\"", cf->tokenstr);
 				break;
 			}
 		}
 	}
 done:
-	fclose(cf->fp);
+	clean_fs(cf);
 	return 1;
 }
 
 int main(int argc, char **argv) {
 	if(argc < 4) {
-		error("%s <source_file> <program> <symbols>", argv[0]);
+		die("usage: %s <source_file> <program> <symbols>", argv[0]);
 	}
 
 	o_fn = argv[2];
@@ -584,10 +733,8 @@ int main(int argc, char **argv) {
 	zero(MEM);
 
 	// Init file_asm structure for the main file
-	struct file_asm mf;
-	init_asm(&mf, argv[1]); 
+	init_asm(argv[1]); 
 
-	cf = &mf;
 	assemble();
 	fix_symbols();
 
