@@ -386,6 +386,32 @@ void expect(int t) {
 	}
 }
 
+void assemble_label(const char *name, int *v) {
+	// Symbols have higher priority
+	struct symbol *s = get_symbol(name);
+	struct cdefine *d = get_define(name);
+
+	if(*v == -1) {
+		if(s) *v = s->ip;
+		else {
+			if(d) *v = d->value;
+			else {
+				to_fix(name, IP+1, NULL, NULL);
+				*v = 0;
+			}
+		}
+	} else {
+		if(s) *v += s->ip;
+		else {
+			if(d) *v += d->value;
+			else {
+				to_fix(name, IP+1, (u16 *)v, NULL);
+				*v = 0;
+			}
+		}
+	}
+}
+
 void assemble_o(u16 *o, int *v) {
 	next();
 	switch(cf->token) {
@@ -413,21 +439,7 @@ void assemble_o(u16 *o, int *v) {
 
 		case tSTR: {
 			*o = 0x18;
-			char buf[128];
-			zero(buf);
-			strcpy(buf, cf->tokenstr);
-			struct symbol *sym = get_symbol(buf);
-			if(sym) {
-				*v = sym->ip;
-			} else {
-				struct cdefine *d = get_define(buf);
-				if(d) {
-					*v = d->value;
-				} else {
-					to_fix(buf, IP+1, NULL, NULL);
-					*v = 0;
-				}
-			}
+			assemble_label(cf->tokenstr, v);
 			break;
 		}
 
@@ -451,21 +463,7 @@ void assemble_o(u16 *o, int *v) {
 				}
 				else if(cf->token == tSTR) {
 					*o += 0x10;
-					char buf[128];
-					zero(buf);
-					strcpy(buf, cf->tokenstr);
-					struct symbol *sym = get_symbol(buf);
-					if(sym) {
-						*v = sym->ip;
-					} else {
-						struct cdefine *d = get_define(buf);
-						if(d) {
-							*v = d->value;
-						} else {
-							to_fix(buf, IP+1, NULL, NULL);
-							*v = 0;
-						}
-					}
+					assemble_label(cf->tokenstr, v);
 				} else {
 					error("expected [register+nextw]");
 				}
@@ -491,20 +489,7 @@ void assemble_o(u16 *o, int *v) {
 					*o = (cf->token&7)+0x10;
 				} else if(cf->token == tSTR) {
 					*o = 0x19;
-					char buf[128];
-					zero(buf);
-					strcpy(buf, cf->tokenstr);
-					struct symbol *sym = get_symbol(buf);
-					if(sym) {
-						*v += sym->ip;
-					} else {
-						struct cdefine *d = get_define(buf);
-						if(d) {
-							*v += d->value;
-						} else {
-							to_fix(buf, IP+1, (u16 *)v, NULL);
-						}
-					}
+					assemble_label(cf->tokenstr, v);
 				} else {
 					error("expected value");
 				}
@@ -513,10 +498,9 @@ void assemble_o(u16 *o, int *v) {
 		}
 
 		if(cf->token == tSTR) {
+			char buf[128] = {0};
 			*o = 0x19;
 			*v = 0;
-			char buf[128];
-			zero(buf);
 			strcpy(buf, cf->tokenstr);
 			next();
 			if(cf->token == tPLUS) {
@@ -526,38 +510,13 @@ void assemble_o(u16 *o, int *v) {
 				} else if(cf->token <= 7) {
 					*o = (cf->token&0x7)+0x10;
 				} else if(cf->token == tSTR) {
-					char buf_2[128];
-					zero(buf_2);
-					strcpy(buf_2, cf->tokenstr);
-					struct symbol *s = get_symbol(buf_2);
-					if(s) {
-						*v += s->ip;
-					} else {
-						struct cdefine *d = get_define(buf_2);
-						if(d) {
-							*v += d->value;	
-						}
-					}
+					assemble_label(cf->tokenstr, v);
 				} else {
 					error("expected value");
 				}
 				next();
 			}
-			struct symbol *sym = get_symbol(buf);
-			if(sym) {
-				*v += sym->ip;
-			} else {
-				struct cdefine *d = get_define(buf);
-				if(d) {
-					*v += d->value;
-				} else {
-					to_fix(buf, IP+1, (u16 *)v, NULL);
-				}
-			}
-
-			if(cf->token != tBE) {
-				error("expected ]");
-			}
+			assemble_label(buf, v);
 		}
 	}
 } 
