@@ -1,36 +1,35 @@
 ### PCPU Specifications
 * **16-bit** CPU
-* **0x8000 words** of memory available (0x10000 bytes)
-* **7 registers** (A, B, C, D, X, Y, Z), **stack pointer** (SP), **instruction pointer** (IP or program counter)
+* **0x8000 word** memory
+* *8 16-bit general purpose registers** (A, B, C, D, X, Y, Z, J), **stack pointer** (SP), **instruction pointer** (IP)
 * **OF** (overflow) flag
 * **0x2000 words** global stack size, start `0x7FFF`, goes down
 * **0x500 words** screen size (80x32 bytes), start `0x0`
 * instruction takes maximum **6 bytes** 
 
 ### Instruction specifications
-* instruction opcode is 16 bits `0xDDDDDSSSSSOOOOOO`
+* instruction opcode is 16 bits `0xDDDDDSSSSSOOOOOO`, might be followed by two 16-bit words
 
-| instruction part   | bits   | max value  |
+| operand   	     | bits   | max value  |
 | ------------------ | :----: | :--------: |
 | operation	     | 6      | 0x3F       |
 | destination	     | 5      | 0x1F       |
 | source	     | 5      | 0x1F       |
 
 
-### Opcodes for destination,source
+### Opcodes for destination,source operands
 
 | opcode 	| detail	   | description	                    |
 | ------------- | ---------------- | -------------------------------------- |
-| 0x00 - 0x06	| register 	   | literal value of the register          |
-| 0x07 - 0x0D	| [register]	   | value at register 			    |
-| 0x0E - 0x14	| [register+A]     | value at register + A                  |
-| 0x15 - 0x1B	| [register+nextw] | value at register + next word          |
-| 0x1C		| nextw		   | literal value of next word             |
-| 0x1D		| [nextw]          | value at next word                     |
-| 0x1E		| SP               | literal value of stack pointer         |
-| 0x1F		| IP               | literal value of instruction pointer   |
+| 0x00 - 0x07	| register 	   | literal value of the register          |
+| 0x08 - 0x0F	| [register]	   | value at register 			    |
+| 0x10 - 0x17	| [register+nextw] | value at register + next word          |
+| 0x18		| nextw		   | literal value of next word             |
+| 0x19		| [nextw]          | value at next word                     |
+| 0x1A		| SP               | literal value of stack pointer         |
+| 0x1B		| IP               | literal value of instruction pointer   |
 
-### Instruction set (for operation)
+### Opcode for operation operand (instruction set)
 
 | OP     | INS              | detail                              | description                         |
 | :----: | ---------------- | ----------------------------------- | ----------------------------------- |
@@ -56,7 +55,6 @@
 | 0x14   | POP A            | pops value from stack to A          |                                     |
 | 0x15   | RET              | POP IP                       	  |                                     |
 | 0x16   | END              | ends program execution              |                                     |
-|   -    | DAT w            | writes literal value to memory      |                                     |
 
 ### Assembly language
 
@@ -87,20 +85,23 @@ JTR write_mem
 
 END
 
+.mem_address 	DAT 	0
+
 :write_mem
 	POP Z
 
-	POP X 		; mem_address
-	POP C 		; count
-	POP Y 		; value
+	POP [mem_address] 	; mem_address
+	POP C 			; count
+	POP Y 			; value
 
 	SET A,0
 	:loop
-		SET [X+A],Y
+		SET X,[mem_address]
+		ADD X,A
+		SET [X],Y
 		ADD A,1
 		IFN A,C
 			JMP loop
-
 	PUSH Z
 	RET
 ```
@@ -126,16 +127,20 @@ END
 
 ##### memory.asm
 ```
+.mem_address 	DAT 	0
+
 :write_mem
 	POP Z
 
-	POP X 		; mem_address
-	POP C 		; count
-	POP Y 		; value
+	POP [mem_address] 	; mem_address
+	POP C 			; count
+	POP Y 			; value
 
 	SET A,0
 	:loop
-		SET [X+A],Y
+		SET X,[mem_address]
+		ADD X,A
+		SET [X],Y
 		ADD A,1
 		IFN A,C
 			JMP loop
@@ -166,16 +171,22 @@ END
 
 ##### memory.asm
 ```
+
+.dst_addr	DAT 	0
+.src_addr 	DAT 	0
+
 :write_mem
 	POP Z
 
-	POP X 		; mem_address
-	POP C 		; count
-	POP Y 		; value
+	POP [dst_addr]		; mem_address
+	POP C 			; count
+	POP Y 			; value
 
 	SET A,0
 	:loop
-		SET [X+A],Y
+		SET X,[dst_addr]
+		ADD X,A
+		SET [X],Y
 		ADD A,1
 		IFN A,C
 			JMP loop
@@ -186,12 +197,16 @@ END
 :copy_mem
 	POP Z
 
-	POP X 		; dst_mem_addr
-	POP Y 		; src_mem_addr
-	POP C 		; count
+	POP [dst_addr]
+	POP [src_addr] 
+	POP C 
 
 	:loop_2
-		SET [X+A],[Y+A]
+		SET X,[dst_addr]
+		SET Y,[src_addr] 
+		ADD X,A
+		ADD Y,A
+		SET [X],[Y]
 		ADD A,1
 		IFN A,C
 			JMP loop_2
@@ -207,7 +222,7 @@ END
 ```
 .const_A        DAT     0x1000
 .const_B        DAT     "Eggs"
-.const_C        DAT     "On a Plane",0xF00D
+.const_C        DAT     "On a Plane",0,0xF00D
 ```
 
 ##### include
