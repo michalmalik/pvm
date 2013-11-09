@@ -7,8 +7,8 @@ typedef unsigned short u16;
 static const char *opc[] = {
 	"SET", "ADD", "SUB", "MUL", "DIV", "MOD",
 	"NOT", "AND", "OR", "XOR", "SHL", "SHR",
-	"IFE", "IFN", "IFG", "IFL", "JMP", "JTR",
-	"PUSH", "POP", "RET", "END"
+	"IFE", "IFN", "IFG", "IFL", "IFGE", "IFLE", 
+	"JMP", "JTR", "PUSH", "POP", "RET"
 };
 
 static const char *regs = "ABCDXYZJ";
@@ -41,27 +41,27 @@ void disassemble(u16 *mem, u16 ip, char *out) {
 
 	u16 ins = mem[ip];
 	u16 op = ins&0x3F;
+	u16 ins_num = sizeof(opc)/sizeof(opc[0]);
 
 	sprintf(out+strlen(out), "%04X\t", ins);
 
-	if(op > 0x15) {
+	if(op > ins_num) {
 		sprintf(out+strlen(out), "%s", "DAT");
 	} else {
 		sprintf(out+strlen(out), "%s ", opc[op]);
 	}
 
-	if((op == 6) || (op >= 0x10 && op <= 0x13)) {
+	if((op == 6) || (op >= 0x12 && op <= 0x15)) {
 		dis_opr(mem, ins>>11, ip, out);
-	} else if(op == 0x14) {
+	} else if(op == 0x16) {
 
-	} else if(op == 0x15) {
-
-	} else if(op > 0x1F) {
+	} else if(op > ins_num) {
 
 	} else {
 		dis_opr(mem, ins>>11, ip, out);
 		sprintf(out+strlen(out), ",");
-		dis_opr(mem, (ins>>6)&0x1F, ip, out);
+		if(ins>>11 >= 0x10 && ins>>11<=0x19) dis_opr(mem, (ins>>6)&0x1F, ip+1, out);
+		else dis_opr(mem, (ins>>6)&0x1F, ip, out);
 	}	
 
 	sprintf(out+strlen(out), "\n");
