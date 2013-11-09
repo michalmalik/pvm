@@ -47,7 +47,7 @@ static char *o_fn = NULL;
 static char *sym_fn = NULL;
 
 static const char *tn[] = {
-	"A", "B", "C", "D", "X", "Y", "Z",
+	"A", "B", "C", "D", "X", "Y", "Z", "J",
 	"SP", "IP",
 	"SET",
 	"ADD", "SUB", "MUL", "DIV", "MOD",
@@ -59,7 +59,7 @@ static const char *tn[] = {
 };
 
 enum _tokens {
-	tA, tB, tC, tD, tX, tY, tZ,
+	tA, tB, tC, tD, tX, tY, tZ, tJ,
 	tSP, tIP,
 	tSET, 
 	tADD, tSUB, tMUL, tDIV, tMOD,
@@ -279,29 +279,29 @@ void assemble_o(u16 *o, int *v) {
 	next();
 	switch(cf->token) {
 		case tA: case tB: case tC: case tD:
-		case tX: case tY: case tZ: {
+		case tX: case tY: case tZ: case tJ: {
 			*o = cf->token&0x7;
 			break;
 		}
 
 		case tSP: {
-			*o = 0x1E;
+			*o = 0x1A;
 			break;
 		}
 
 		case tIP: {
-			*o = 0x1F;
+			*o = 0x1B;
 			break;
 		}
 
 		case tNUM: {
-			*o = 0x1C;
+			*o = 0x18;
 			*v = cf->tokennum;
 			break;
 		}
 
 		case tSTR: {
-			*o = 0x1C;
+			*o = 0x18;
 			char buf[128];
 			zero(buf);
 			strcpy(buf, cf->tokenstr);
@@ -324,17 +324,17 @@ void assemble_o(u16 *o, int *v) {
 	if(cf->token == tBS) {
 		next();
 
-		if(cf->token <= 6) {
+		if(cf->token <= 7) {
 			*o = cf->token&7;
 			next();
 			if(cf->token == tPLUS) {
 				next();
 				if(cf->token == tNUM) {
-					*o += 0x15;
+					*o += 0x10;
 					*v = cf->tokennum;
 				}
 				else if(cf->token == tSTR) {
-					*o += 0x15;
+					*o += 0x10;
 					char buf[128];
 					zero(buf);
 					strcpy(buf, cf->tokenstr);
@@ -345,14 +345,12 @@ void assemble_o(u16 *o, int *v) {
 						to_fix(buf, IP+1, NULL, NULL);
 						*v = 0;
 					}
-				} else if(cf->token <= 6) {
-					*o += 0x0E;
 				} else {
 					error("expected [register+nextw]");
 				}
 				next();
 			} else if(cf->token == tBE) {
-				*o += 0x7;
+				*o += 0x8;
 			} 
 
 			if(cf->token != tBE) {
@@ -362,16 +360,16 @@ void assemble_o(u16 *o, int *v) {
 
 		if(cf->token == tNUM) {
 			*v = cf->tokennum;
-			*o = 0x1D;
+			*o = 0x19;
 			next();
 			if(cf->token == tPLUS) {
 				next();
 				if(cf->token == tNUM) {
 					*v += cf->tokennum;
-				} else if(cf->token <= 6) {
-					*o = (cf->token&7)+0x15;
+				} else if(cf->token <= 7) {
+					*o = (cf->token&7)+0x10;
 				} else if(cf->token == tSTR) {
-					*o = 0x1D;
+					*o = 0x19;
 					char buf[128];
 					zero(buf);
 					strcpy(buf, cf->tokenstr);
@@ -389,7 +387,7 @@ void assemble_o(u16 *o, int *v) {
 		}
 
 		if(cf->token == tSTR) {
-			*o = 0x1D;
+			*o = 0x19;
 			*v = 0;
 			char buf[128];
 			zero(buf);
@@ -399,8 +397,8 @@ void assemble_o(u16 *o, int *v) {
 				next();
 				if(cf->token == tNUM) {
 					*v += cf->tokennum;
-				} else if(cf->token <= 6) {
-					*o = (cf->token&0x7)+0x15;
+				} else if(cf->token <= 7) {
+					*o = (cf->token&0x7)+0x10;
 				} else {
 					error("expected value");
 				}

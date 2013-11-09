@@ -12,7 +12,7 @@ extern void disassemble(u16 *mem, u16 ip, char *out);
 #define count(a)    (sizeof((a))/sizeof((a)[0]))
 
 struct cpu {
-        u16 r[7];
+        u16 r[8];
         u16 sp, ip;
         u8 of:1;
         u16 mem[0x8000];
@@ -77,6 +77,7 @@ static void debug(struct cpu *p) {
         printf("%2s: 0x%04X\n", "X", p->r[4]);
         printf("%2s: 0x%04X\n", "Y", p->r[5]);
         printf("%2s: 0x%04X\n", "Z", p->r[6]);
+        printf("%2s: 0x%04X\n", "J", p->r[7]);
         printf("%2s: 0x%04X\n", "SP", p->sp);
         printf("%2s: 0x%04X\n", "IP", p->ip);
         printf("%2s: 0x%04X\n", "OF", p->of);
@@ -102,37 +103,33 @@ static void load(struct cpu *p, const char *fn) {
 static u16 *getopr(struct cpu *p, u8 b, u16 *w) {
         u16 *o = NULL;
 
-        if(b >= 0x15 && b <= 0x1D) {
+        if(b >= 0x10 && b <= 0x19) {
                 w = p->mem+(p->ip++);
         }
 
         switch(b) {
                 case 0x00: case 0x01: case 0x02: case 0x03:
-                case 0x04: case 0x05: case 0x06:
+                case 0x04: case 0x05: case 0x06: case 0x07:
                         o = p->r+b;
                         break;
-                case 0x07: case 0x08: case 0x09: case 0x0A:
-                case 0x0B: case 0x0C: case 0x0D:
-                        o = p->mem+p->r[b-0x07];
+                case 0x08: case 0x09: case 0x0A: case 0x0B:
+                case 0x0C: case 0x0D: case 0x0E: case 0x0F:
+                        o = p->mem+p->r[b-0x08];
                         break;
-                case 0x0E: case 0x0F: case 0x10: case 0x11: 
-                case 0x12: case 0x13: case 0x14:
-                        o = p->mem+(p->r[b-0x0E]+p->r[0]);
+                case 0x10: case 0x11: case 0x12: case 0x13:
+                case 0x14: case 0x15: case 0x16: case 0x17:
+                        o = p->mem+(p->r[b-0x10]+*w);
                         break;
-                case 0x15: case 0x16: case 0x17: case 0x18:
-                case 0x19: case 0x1A: case 0x1B:
-                        o = p->mem+(p->r[b-0x15]+*w);
-                        break;
-                case 0x1C:
+                case 0x18:
                         o = w;
                         break;
-                case 0x1D:
+                case 0x19:
                         o = p->mem+*w;
                         break;
-                case 0x1E:
+                case 0x1A:
                         o = &p->sp;
                         break;
-                case 0x1F:
+                case 0x1B:
                         o = &p->ip;
                         break;
                 default: break;
@@ -146,8 +143,8 @@ int word(u16 op) {
         u8 d = op>>11;
         u8 s = (op>>6)&0x1f;
 
-        if(d >= 0x15 && d <= 0x1D) wc++;
-        if(s >= 0x15 && s <= 0x1D) wc++;
+        if(d >= 0x10 && d <= 0x19) wc++;
+        if(s >= 0x10 && s <= 0x19) wc++;
 
         return wc;
 }

@@ -11,29 +11,27 @@ static const char *opc[] = {
 	"PUSH", "POP", "RET", "END"
 };
 
-static const char *regs = "ABCDXYZ";
+static const char *regs = "ABCDXYZJ";
 
 static void dis_opr(u16 *mem, u16 b, u16 ip, char *out) {
 	u16 w = 0;
-	if(b >= 0x15 && b <= 0x1D) {
+	if(b >= 0x10 && b <= 0x19) {
 		w = mem[ip+1];
 	}
 
-	if(b >= 0x00 && b <= 0x06) {
+	if(b >= 0x00 && b <= 0x07) {
 		sprintf(out+strlen(out), "%c", regs[b]);
-	} else if(b >= 0x07 && b <= 0x0D) {
-		sprintf(out+strlen(out), "[%c]", regs[b-0x07]);
-	} else if(b >= 0x0E && b <= 0x14) {
-		sprintf(out+strlen(out), "[%c+A]", regs[b-0x0E]);
-	} else if(b >= 0x15 && b <= 0x1B) {
-		sprintf(out+strlen(out), "[%c+0x%04X]", regs[b-0x15], w);
-	} else if(b == 0x1C) {
+	} else if(b >= 0x08 && b <= 0x0F) {
+		sprintf(out+strlen(out), "[%c]", regs[b-0x08]);
+	} else if(b >= 0x10 && b <= 0x17) {
+		sprintf(out+strlen(out), "[%c+0x%04X]", regs[b-0x10], w);
+	} else if(b == 0x18) {
 		sprintf(out+strlen(out), "0x%04X", w);
-	} else if(b == 0x1D) {
+	} else if(b == 0x19) {
 		sprintf(out+strlen(out), "[0x%04X]", w);
-	} else if(b == 0x1E) {
+	} else if(b == 0x1A) {
 		sprintf(out+strlen(out), "SP");
-	} else if(b == 0x1F) {
+	} else if(b == 0x1B) {
 		sprintf(out+strlen(out), "IP");
 	}
 }
