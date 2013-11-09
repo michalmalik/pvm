@@ -1,7 +1,7 @@
 ### PCPU Specifications
 * **16-bit** CPU
 * **0x8000 word** memory
-* *8 16-bit general purpose registers** (A, B, C, D, X, Y, Z, J), **stack pointer** (SP), **instruction pointer** (IP)
+* **8 16-bit general purpose registers** (A, B, C, D, X, Y, Z, J), **stack pointer** (SP), **instruction pointer** (IP)
 * **OF** (overflow) flag
 * **0x2000 words** global stack size, start `0x7FFF`, goes down
 * **0x500 words** screen size (80x32 bytes), start `0x0`
