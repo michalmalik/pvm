@@ -10,8 +10,8 @@ typedef unsigned short u16;
 #define zero(a)     (memset((a),0,sizeof((a))))
 #define count(a)    (sizeof((a))/sizeof((a)[0]))
 
-u16 MEM[0x8000];
-u16 IP = 0;
+static u16 MEM[0x8000];
+static u16 IP = 0;
 
 struct file_asm {
 	FILE *fp;
@@ -38,15 +38,15 @@ struct symbol {
 	struct file_asm f;
 };
 
-struct file_asm *cf = NULL;
+static struct file_asm *cf = NULL;
 
-struct symbol *symbols = NULL;
-struct symbol *fixes = NULL;
+static struct symbol *symbols = NULL;
+static struct symbol *fixes = NULL;
 
-char *o_fn = NULL;
-char *sym_fn = NULL;
+static char *o_fn = NULL;
+static char *sym_fn = NULL;
 
-char *tn[] = {
+static const char *tn[] = {
 	"A", "B", "C", "D", "X", "Y", "Z",
 	"SP", "IP",
 	"SET",

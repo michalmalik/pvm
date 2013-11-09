@@ -19,9 +19,9 @@ struct cpu {
         int end;
 };
 
-FILE *debug_fp = NULL;
-char *i_fn = NULL;
-char *o_fn = NULL;
+static FILE *debug_fp = NULL;
+static char *i_fn = NULL;
+static char *o_fn = NULL;
 
 void error(const char *format, ...) {
         char buf_1[512];
