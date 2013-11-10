@@ -248,7 +248,7 @@ SET [A+PERSON_HEIGHT],0xB4
 00010000
 ```
 
-#### TESTING: Example no. 7
+#### TESTING COMPILER: Example no. 7
 ```
 JMP start
 
@@ -272,7 +272,17 @@ SET A,[const_B]
 SET A,[const_A+CONST_C]
 SET A,[const_B+CONST_C]
 SET A,[CONST_C+const_A]
-SET A,[CONST_C+const_B]		; invalid
+SET A,[CONST_C+const_B]
+SET A,[const_B+const_B]	
+SET A,[const_B+const_D]	
+
+JMP end
+
+.const_B 	DAT 	0x20
+.const_D	DAT 	0x40
+
+:end
+
 ```
 
 #### Macros
