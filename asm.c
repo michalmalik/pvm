@@ -59,7 +59,7 @@ struct fix {
 	char str_value[128];
 	char linebuffer[256];
 
-	u16 ip;
+	u16 fix_addr;
 	u16 num_value;
 
 	int linenumber;
@@ -233,7 +233,7 @@ void to_fix(const char *name, u16 ip, u16 *num_value, char *str_value) {
 	zero(f->fn);
 	zero(f->linebuffer);
 
-	f->ip = ip;
+	f->fix_addr = ip;
 	strcpy(f->name, name);
 
 	strcpy(f->fn, cf->i_fn);
@@ -263,7 +263,7 @@ void fix_symbols() {
 			die("%s: error: line %d, symbol \"%s\" is not defined, \"%s\"", f->fn, f->linenumber,
 				 f->name, f->linebuffer);
 		}
-		MEM[f->ip] = s->ip+f->num_value;
+		MEM[f->fix_addr] += s->ip + f->num_value;
 	}
 }
 
@@ -427,28 +427,33 @@ void assemble_label(const char *name, int *v) {
 void assemble_o(u16 *o, int *v) {
 	next();
 	switch(cf->token) {
+		// register
 		case tA: case tB: case tC: case tD:
 		case tX: case tY: case tZ: case tJ: {
 			*o = cf->token&0x7;
 			break;
 		}
 
+		// SP
 		case tSP: {
 			*o = 0x1A;
 			break;
 		}
 
+		// IP
 		case tIP: {
 			*o = 0x1B;
 			break;
 		}
 
+		// nextw
 		case tNUM: {
 			*o = 0x18;
 			*v = cf->tokennum;
 			break;
 		}
 
+		// nextw
 		case tSTR: {
 			*o = 0x18;
 			assemble_label(cf->tokenstr, v);
@@ -469,10 +474,13 @@ void assemble_o(u16 *o, int *v) {
 			next();
 			if(cf->token == tPLUS) {
 				next();
+
+				// [register + nextw]
 				if(cf->token == tNUM) {
 					*o += 0x10;
 					*v = cf->tokennum;
 				}
+				// [register + nextw]
 				else if(cf->token == tSTR) {
 					*o += 0x10;
 					assemble_label(cf->tokenstr, v);
@@ -480,25 +488,26 @@ void assemble_o(u16 *o, int *v) {
 					error("expected [register+nextw]");
 				}
 				next();
+			// [register]
 			} else if(cf->token == tBE) {
 				*o += 0x8;
 			} 
-
-			if(cf->token != tBE) {
-				error("expected ]");
-			}
 		}
 
 		if(cf->token == tNUM) {
+			// [nextw]
 			*v = cf->tokennum;
 			*o = 0x19;
 			next();
 			if(cf->token == tPLUS) {
 				next();
+				// [nextw]
 				if(cf->token == tNUM) {
 					*v += cf->tokennum;
+				// [register + nextw]
 				} else if(cf->token <= 7) {
 					*o = (cf->token&7)+0x10;
+				// [nextw]
 				} else if(cf->token == tSTR) {
 					assemble_label(cf->tokenstr, v);
 				} else {
@@ -509,30 +518,63 @@ void assemble_o(u16 *o, int *v) {
 		}
 
 		if(cf->token == tSTR) {
-			char buf[128] = {0};
-			strcpy(buf, cf->tokenstr);
 			*o = 0x19;
 			*v = 0;
+			int f_token = cf->token;
+			int s_token = -1;
+			int fdef = -1;
+			int sdef = -1;
+
+			char f_buf[128] = {0};
+			char s_buf[128] = {0};
+			strcpy(f_buf, cf->tokenstr);
+
 			next();
 			if(cf->token == tPLUS) {
 				next();
 				if(cf->token == tNUM) {
 					*v += cf->tokennum;
 				} else if(cf->token <= 7) {
-					*o = (cf->token&0x7)+0x10;
+					*o = (cf->token&7)+0x10;
 				} else if(cf->token == tSTR) {
-					if(is_defined(cf->tokenstr)) {
-						assemble_label(cf->tokenstr, v);
-					} else {
-						error("\"%s\" not defined, therefore invalid here", cf->tokenstr);
-					}
+					s_token = cf->token;
+					strcpy(s_buf, cf->tokenstr);
 				} else {
 					error("expected value");
 				}
 				next();
 			}
-			assemble_label(buf, v);
+
+			// [defined + NON_STR]
+			// [undefined + NON_STR]
+			if(s_token == -1) {
+				assemble_label(f_buf, v);
+			} else {
+				fdef = is_defined(f_buf);
+				sdef = is_defined(s_buf);
+
+				// [defined + defined]
+				// [defined + undefined]
+				if(fdef && (sdef || !sdef)) {
+					assemble_label(f_buf, v);
+					assemble_label(s_buf, v);
+				} 
+				// [undefined + defined]
+				if(!fdef && sdef) {
+					assemble_label(s_buf, v);
+					assemble_label(f_buf, v);
+				}
+				// [undefined + undefined]
+				if(!fdef && !sdef) {
+					*v = -1;
+					assemble_label(f_buf, v);
+					assemble_label(s_buf, v);
+				}
+			}
 		}
+		
+		if(cf->token != tBE) 
+			error("expected ]");
 	}
 } 
 
@@ -625,7 +667,6 @@ again:
 					init_asm(buf);
 					assemble();
 					*cf = tf;
-				// TODO: Compile-time symbols
 				} else if(!strcasecmp(cf->tokenstr, "define")) {
 					char name[128];
 					zero(name);
