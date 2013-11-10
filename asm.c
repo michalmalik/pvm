@@ -305,6 +305,18 @@ struct cdefine *get_define(const char *name) {
 	return NULL;
 }
 
+int is_defined(const char *name) {
+	struct symbol *s;
+	size_t i;
+	for(s = symbols; s; s = s->next) {
+		if(!strcmp(s->name, name)) return 1;
+	}
+	for(i = 0; i < DEFINES_LIMIT; i++) {
+		if(!strcmp(cf->defines[i].name, name)) return 1;
+	}
+	return 0;
+}
+
 int next_token() {
 	char c = 0, *x = 0;
 	zero(cf->tokenstr);
@@ -488,7 +500,6 @@ void assemble_o(u16 *o, int *v) {
 				} else if(cf->token <= 7) {
 					*o = (cf->token&7)+0x10;
 				} else if(cf->token == tSTR) {
-					*o = 0x19;
 					assemble_label(cf->tokenstr, v);
 				} else {
 					error("expected value");
@@ -499,9 +510,9 @@ void assemble_o(u16 *o, int *v) {
 
 		if(cf->token == tSTR) {
 			char buf[128] = {0};
+			strcpy(buf, cf->tokenstr);
 			*o = 0x19;
 			*v = 0;
-			strcpy(buf, cf->tokenstr);
 			next();
 			if(cf->token == tPLUS) {
 				next();
@@ -510,7 +521,11 @@ void assemble_o(u16 *o, int *v) {
 				} else if(cf->token <= 7) {
 					*o = (cf->token&0x7)+0x10;
 				} else if(cf->token == tSTR) {
-					assemble_label(cf->tokenstr, v);
+					if(is_defined(cf->tokenstr)) {
+						assemble_label(cf->tokenstr, v);
+					} else {
+						error("\"%s\" not defined, therefore invalid here", cf->tokenstr);
+					}
 				} else {
 					error("expected value");
 				}
