@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdarg.h>
+#include <time.h>
 
 typedef unsigned char u8;
 typedef unsigned short u16;
@@ -11,7 +12,9 @@ extern void disassemble(u16 *mem, u16 ip, char *out);
 #define zero(a)     (memset((a),0,sizeof((a))))
 #define count(a)    (sizeof((a))/sizeof((a)[0]))
 
-#define STACK_LIMIT     0x2000
+// In KHz
+#define CPU_FREQ                33
+#define STACK_LIMIT             0x2000
 
 struct cpu {
         u16 r[8];
@@ -21,6 +24,8 @@ struct cpu {
         int cycles;
 };
 
+// in miliseconds (adding relative speed)
+const long double CYCLE_DURR = (long double)(1/(CPU_FREQ*1000.0f));
 static char *i_fn = NULL;
 static char *o_fn = NULL;
 
@@ -97,6 +102,18 @@ static void load(struct cpu *p, const char *fn) {
         fclose(fp);
 }
 
+struct timespec diff(struct timespec start, struct timespec end) {
+        struct timespec temp;
+        if((end.tv_nsec-start.tv_nsec)<0) {
+                temp.tv_sec = end.tv_sec-start.tv_sec-1;
+                temp.tv_nsec = 1000000000+end.tv_nsec-start.tv_nsec;
+        } else {
+                temp.tv_sec = end.tv_sec-start.tv_sec;
+                temp.tv_nsec = end.tv_nsec-start.tv_nsec;
+        }
+        return temp;
+}
+
 static u16 *getopr(struct cpu *p, u8 b, u16 *w) {
         u16 *o = NULL;
 
@@ -155,14 +172,19 @@ int word(u16 op) {
 }
 
 static void step(struct cpu *p) {
+        struct timespec start, end, sleep_durr;
+        double real_cpu_exec = 0, virt_cpu_exec = 0;
+        int cycle_start = p->cycles, cycle_end = 0, cycles = 0;
         char out[128];
         zero(out);
         disassemble(p->mem, p->ip, out);
         printf("%s", out);
 
-        u16 op = p->mem[p->ip++];
-
         p->cycles++;
+
+        clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &start);
+
+        u16 op = p->mem[p->ip++];
 
         u8 o = 0;
         u16 *d = 0, *s = 0, w = 0;
@@ -276,7 +298,23 @@ static void step(struct cpu *p) {
                 default: break;
         }
 
-        debug(p);
+        clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &end);
+
+        cycle_end = p->cycles;
+        cycles = cycle_end-cycle_start;
+
+        // in nanoseconds
+        real_cpu_exec = diff(start, end).tv_nsec;
+        virt_cpu_exec = cycles*(float)(CYCLE_DURR)*1000000000;
+
+        printf("real cpu execution time %.12lf ns\n", real_cpu_exec);
+        printf("virtual cpu execution time %.12lf\n", virt_cpu_exec);
+
+        sleep_durr.tv_nsec = (long)(virt_cpu_exec-real_cpu_exec);
+        sleep_durr.tv_sec = 0;
+        nanosleep(&sleep_durr, NULL);
+
+       // debug(p);
 }
 
 int main(int argc, char **argv) {
@@ -303,7 +341,7 @@ int main(int argc, char **argv) {
                         error("STACK_LIMIT(%04X) reached");
                 }
 
-                // Step
+                /*// Step
                 if(c == 's') {
                         step(&p);
                 } else if(c == 'd') {
@@ -313,8 +351,9 @@ int main(int argc, char **argv) {
                         scanf("%04X %04X", &w1, &w2);
                         printf("([0x%04X] = %04X) -> %04X\n", w1, p.mem[w1], w2);
                         p.mem[w1] = w2;
-                }
-        } while(p.mem[p.ip] && (c = getchar()));
+                }*/
+                step(&p);
+        } while(p.mem[p.ip]);
 
         memory_dmp(&p, o_fn);
 
