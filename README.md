@@ -32,11 +32,11 @@
 
 | OP     | INS              | description                              		     | cycles  |
 | :----: | ---------------- | ------------------------------------------------------ | :-----: | 
-| 0x00   | SET A,B          | A = B                               		     | 1-3     |
+| 0x00   | STO A,B          | A = B                               		     | 1-3     |
 | 0x01   | ADD A,B          | A = A+B ; sets OF flag              		     | 2-3     |               
 | 0x02   | SUB A,B          | A = A-B ; sets OF flag              		     | 2-3     |
 | 0x03   | MUL A,B          | A = A*B ; sets OF flag              		     | 2-3     |
-| 0x04   | DIV A,B          | A = A/B ; D = A%B                   		     | 2-3     |
+| 0x04   | DIV A,B          | A = A/B ; D = A%B                   		     | 2-5     |
 | 0x05   | MOD A,B          | A = A%B                   	  		     |         |
 | 0x06   | NOT A            | A = ~(A)                            		     |         |
 | 0x07   | AND A,B          | A = A&B                             		     |         |
@@ -44,30 +44,30 @@
 | 0x09   | XOR A,B          | A = A^B                             		     |         |
 | 0x0A   | SHL A,B          | A = A << B                          		     |         |
 | 0x0B   | SHR A,B          | A = A >> B                          		     |         |
-| 0x0C   | IFE A,B          | execute next instruction if A==B    		     |         |
-| 0x0D   | IFN A,B          | if A!=B            		  		     |         |
-| 0x0E   | IFG A,B          | if A>B            		  		     |         |
-| 0x0F   | IFL A,B          | if A<B           		   	  		     |         |
-| 0x10   | IFGE A,B         | if A>=B                             		     |         |
-| 0x11   | IFLE A,B         | if A<=B                             		     |         |
-| 0x12   | JMP label        | jump to label            		  		     |         |
-| 0x13   | JTR label        | push IP of next instruction on stack, jump to label    |	       |
-| 0x14   | PUSH A           | push A on stack, SP--	  		     	     |         |
-| 0x15   | POP A            | pops value from stack to A, SP++         		     |         |
-| 0x16   | RET              | pops value from stack to IP                 	     |         |
+| 0x0C   | IFE A,B          | execute next instruction if A==B    		     | 1-3     |
+| 0x0D   | IFN A,B          | if A!=B            		  		     | 1-3     |
+| 0x0E   | IFG A,B          | if A>B            		  		     | 1-3     |
+| 0x0F   | IFL A,B          | if A<B           		   	  		     | 1-3     |
+| 0x10   | IFGE A,B         | if A>=B                             		     | 1-3     |
+| 0x11   | IFLE A,B         | if A<=B                             		     | 1-3     |
+| 0x12   | JMP label        | jump to label            		  		     | 2-3     |
+| 0x13   | JTR label        | push IP of next instruction on stack, jump to label    | 2-3     |
+| 0x14   | PUSH A           | push A on stack, SP--	  		     	     | 1-2     |
+| 0x15   | POP A            | pops value from stack to A, SP++         		     | 1-2     |
+| 0x16   | RET              | pops value from stack to IP                 	     | 2       |
 
 ### Assembly language
 
 #### Example no. 1
 ```
-SET A,0x1000
-SET B,[A]
+STO A,0x1000
+STO B,[A]
 ```
 
 #### Example no. 2
 ```
-SET A,0
-SET C,10
+STO A,0
+STO C,10
 :loop
 	ADD A,1
 	IFN A,C
@@ -87,11 +87,11 @@ JMP start
 	POP C 			; count
 	POP Y 			; value
 
-	SET A,0
+	STO A,0
 	:loop
-		SET X,[mem_address]
+		STO X,[mem_address]
 		ADD X,A
-		SET [X],Y
+		STO [X],Y
 		ADD A,1
 		IFN A,C
 			JMP loop
@@ -138,11 +138,11 @@ JTR write_mem
 	POP C 			; count
 	POP Y 			; value
 
-	SET A,0
+	STO A,0
 	:loop
-		SET X,[mem_address]
+		STO X,[mem_address]
 		ADD X,A
-		SET [X],Y
+		STO [X],Y
 		ADD A,1
 		IFN A,C
 			JMP loop
@@ -187,11 +187,11 @@ JTR copy_mem
 	POP C 			; count
 	POP Y 			; value
 
-	SET A,0
+	STO A,0
 	:loop
-		SET X,[dst_addr]
+		STO X,[dst_addr]
 		ADD X,A
-		SET [X],Y
+		STO [X],Y
 		ADD A,1
 		IFN A,C
 			JMP loop
@@ -207,11 +207,11 @@ JTR copy_mem
 	POP C 
 
 	:loop_2
-		SET X,[dst_addr]
-		SET Y,[src_addr] 
+		STO X,[dst_addr]
+		STO Y,[src_addr] 
 		ADD X,A
 		ADD Y,A
-		SET [X],[Y]
+		STO [X],[Y]
 		ADD A,1
 		IFN A,C
 			JMP loop_2
@@ -231,9 +231,9 @@ JMP start
 
 :start
 
-SET A,ST_PERSON_MICHAL
-SET [A+PERSON_AGE],0x12
-SET [A+PERSON_HEIGHT],0xB4
+STO A,ST_PERSON_MICHAL
+STO [A+PERSON_AGE],0x12
+STO [A+PERSON_HEIGHT],0xB4
 ```
 
 ##### hexdump -C
@@ -257,24 +257,24 @@ JMP start
 
 :start
 
-SET A,const_A
-SET A,const_B
-SET A,[B+const_A]
-SET A,[B+const_B]
-SET A,[const_A+B]
-SET A,[const_B+B]
-SET A,[const_A+0x10]
-SET A,[const_B+0x10]
-SET A,[0x10+const_A]
-SET A,[0x10+const_B]
-SET A,[const_A]
-SET A,[const_B]
-SET A,[const_A+CONST_C]
-SET A,[const_B+CONST_C]
-SET A,[CONST_C+const_A]
-SET A,[CONST_C+const_B]
-SET A,[const_B+const_B]	
-SET A,[const_B+const_D]	
+STO A,const_A
+STO A,const_B
+STO A,[B+const_A]
+STO A,[B+const_B]
+STO A,[const_A+B]
+STO A,[const_B+B]
+STO A,[const_A+0x10]
+STO A,[const_B+0x10]
+STO A,[0x10+const_A]
+STO A,[0x10+const_B]
+STO A,[const_A]
+STO A,[const_B]
+STO A,[const_A+CONST_C]
+STO A,[const_B+CONST_C]
+STO A,[CONST_C+const_A]
+STO A,[CONST_C+const_B]
+STO A,[const_B+const_B]	
+STO A,[const_B+const_D]	
 
 JMP end
 
@@ -298,7 +298,7 @@ JMP start
 
 :start
 
-SET [MEM_ADDR],0xF00D
+STO [MEM_ADDR],0xF00D
 PUSH [MEM_ADDR]
 ```
 
@@ -317,7 +317,7 @@ JMP start
 
 :start
 
-SET A,const_A
-SET B,[A]
-SET [B],0xF00D
+STO A,const_A
+STO B,[A]
+STO [B],0xF00D
 ```
