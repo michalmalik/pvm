@@ -11,6 +11,8 @@ extern void disassemble(u16 *mem, u16 ip, char *out);
 #define zero(a)     (memset((a),0,sizeof((a))))
 #define count(a)    (sizeof((a))/sizeof((a)[0]))
 
+#define STACK_LIMIT     0x2000
+
 struct cpu {
         u16 r[8];
         u16 sp, ip;
@@ -68,6 +70,13 @@ static void debug(struct cpu *p) {
         printf("%2s: 0x%04X\n", "IP", p->ip);
         printf("%2s: 0x%04X\n", "OF", p->of);
         printf("\n");
+
+        printf("Stack:\n");
+        size_t i;
+        for(i = 0; i < 0x20; i++) {
+                printf("%04X ", p->mem[0x7FFF-i]);
+                if((i+1)%16==0) printf("\n");
+        }
 }
 
 static void load(struct cpu *p, const char *fn) {
@@ -260,13 +269,6 @@ static void step(struct cpu *p) {
         }
 
         debug(p);
-
-        printf("Stack:\n");
-        size_t i;
-        for(i = 0; i < 0x20; i++) {
-                printf("%04X ", p->mem[0x7FFF-i]);
-                if((i+1)%16==0) printf("\n");
-        }
 }
 
 int main(int argc, char **argv) {
@@ -288,6 +290,10 @@ int main(int argc, char **argv) {
         int c = 0;
         int w1 = 0, w2 = 0;
         do {
+                if(p.sp < 0x7FFF-STACK_LIMIT) {
+                        error("STACK_LIMIT(%04X) reached");
+                }
+
                 // Step
                 if(c == 's') {
                         step(&p);

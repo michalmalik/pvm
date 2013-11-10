@@ -77,7 +77,7 @@ static char *sym_fn = NULL;
 static const char *tn[] = {
 	"A", "B", "C", "D", "X", "Y", "Z", "J",
 	"SP", "IP",
-	"SET",
+	"STO",
 	"ADD", "SUB", "MUL", "DIV", "MOD",
 	"NOT", "AND", "OR", "XOR", "SHL", "SHR",
 	"IFE", "IFN", "IFG", "IFL", "IFGE", "IFLE", "JMP", "JTR",
@@ -89,7 +89,7 @@ static const char *tn[] = {
 enum _tokens {
 	tA, tB, tC, tD, tX, tY, tZ, tJ,
 	tSP, tIP,
-	tSET, 
+	tSTO, 
 	tADD, tSUB, tMUL, tDIV, tMOD,
 	tNOT, tAND, tOR, tXOR, tSHL, tSHR,
 	tIFE, tIFN, tIFG, tIFL, tIFGE, tIFLE, tJMP, tJTR,
@@ -581,7 +581,7 @@ void assemble_o(u16 *o, int *v) {
 void assemble_i(int inst, u16 d, u16 s, int v1, int v2) {
 	u16 o = 0;
 	switch(inst) {
-		case tSET: o = 0; break;
+		case tSTO: o = 0; break;
 		case tADD: o = 1; break;
 		case tSUB: o = 2; break;
 		case tMUL: o = 3; break;
@@ -706,7 +706,7 @@ again:
 				break;
 			}
 			
-			case tSET:
+			case tSTO:
 			case tADD: case tSUB: case tMUL: case tDIV:
 			case tMOD: case tAND: case tOR: case tXOR:
 			case tSHL: case tSHR: 

@@ -5,7 +5,7 @@
 typedef unsigned short u16;
 
 static const char *opc[] = {
-	"SET", "ADD", "SUB", "MUL", "DIV", "MOD",
+	"STO", "ADD", "SUB", "MUL", "DIV", "MOD",
 	"NOT", "AND", "OR", "XOR", "SHL", "SHR",
 	"IFE", "IFN", "IFG", "IFL", "IFGE", "IFLE", 
 	"JMP", "JTR", "PUSH", "POP", "RET"
