@@ -33,28 +33,28 @@
 | OP     | INS              | description                              		     | cycles  |
 | :----: | ---------------- | ------------------------------------------------------ | :-----: | 
 | 0x00   | STO A,B          | A = B                               		     | 1-3     |
-| 0x01   | ADD A,B          | A = A+B ; sets OF flag              		     | 2-3     |               
-| 0x02   | SUB A,B          | A = A-B ; sets OF flag              		     | 2-3     |
-| 0x03   | MUL A,B          | A = A*B ; sets OF flag              		     | 2-3     |
+| 0x01   | ADD A,B          | A = A+B ; sets OF flag              		     | 1-3     |               
+| 0x02   | SUB A,B          | A = A-B ; sets OF flag              		     | 1-3     |
+| 0x03   | MUL A,B          | A = A*B ; sets OF flag              		     | 1-3     |
 | 0x04   | DIV A,B          | A = A/B ; D = A%B                   		     | 2-5     |
-| 0x05   | MOD A,B          | A = A%B                   	  		     |         |
-| 0x06   | NOT A            | A = ~(A)                            		     |         |
-| 0x07   | AND A,B          | A = A&B                             		     |         |
-| 0x08   | OR A,B           | A = A OR B                          		     |         |
-| 0x09   | XOR A,B          | A = A^B                             		     |         |
-| 0x0A   | SHL A,B          | A = A << B                          		     |         |
-| 0x0B   | SHR A,B          | A = A >> B                          		     |         |
+| 0x05   | MOD A,B          | A = A%B                   	  		     | 1-3     |
+| 0x06   | NOT A            | A = ~(A)                            		     | 1-2     |
+| 0x07   | AND A,B          | A = A&B                             		     | 1-3     |
+| 0x08   | OR A,B           | A = A OR B                          		     | 1-3     |
+| 0x09   | XOR A,B          | A = A^B                             		     | 1-3     |
+| 0x0A   | SHL A,B          | A = A << B                          		     | 1-3     |
+| 0x0B   | SHR A,B          | A = A >> B                          		     | 1-3     |
 | 0x0C   | IFE A,B          | execute next instruction if A==B    		     | 1-3     |
 | 0x0D   | IFN A,B          | if A!=B            		  		     | 1-3     |
 | 0x0E   | IFG A,B          | if A>B            		  		     | 1-3     |
 | 0x0F   | IFL A,B          | if A<B           		   	  		     | 1-3     |
 | 0x10   | IFGE A,B         | if A>=B                             		     | 1-3     |
 | 0x11   | IFLE A,B         | if A<=B                             		     | 1-3     |
-| 0x12   | JMP label        | jump to label            		  		     | 2-3     |
-| 0x13   | JTR label        | push IP of next instruction on stack, jump to label    | 2       |
+| 0x12   | JMP label        | jump to label            		  		     | 2       |
+| 0x13   | JTR label        | push IP of next instruction on stack, jump to label    | 3       |
 | 0x14   | PUSH A           | push A on stack, SP--	  		     	     | 1-2     |
 | 0x15   | POP A            | pops value from stack to A, SP++         		     | 1-2     |
-| 0x16   | RET              | pops value from stack to IP                 	     | 2       |
+| 0x16   | RET              | pops value from stack to IP                 	     | 1       |
 
 ### Assembly language
 

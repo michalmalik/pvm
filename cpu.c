@@ -18,6 +18,7 @@ struct cpu {
         u16 sp, ip;
         u8 of:1;
         u16 mem[0x8000];
+        int cycles;
 };
 
 static char *i_fn = NULL;
@@ -69,6 +70,7 @@ static void debug(struct cpu *p) {
         printf("%2s: 0x%04X\n", "SP", p->sp);
         printf("%2s: 0x%04X\n", "IP", p->ip);
         printf("%2s: 0x%04X\n", "OF", p->of);
+        printf("%2s: %d\n", "CPU CYCLES", p->cycles);
         printf("\n");
 
         printf("Stack:\n");
@@ -100,6 +102,7 @@ static u16 *getopr(struct cpu *p, u8 b, u16 *w) {
 
         if(b >= 0x10 && b <= 0x19) {
                 w = p->mem+(p->ip++);
+                p->cycles++;
         }
 
         switch(b) {
@@ -158,6 +161,9 @@ static void step(struct cpu *p) {
         printf("%s", out);
 
         u16 op = p->mem[p->ip++];
+
+        p->cycles++;
+
         u8 o = 0;
         u16 *d = 0, *s = 0, w = 0;
         u16 wc = 0;
@@ -185,6 +191,7 @@ static void step(struct cpu *p) {
                 case 4: {
                         *d = (*d/(*s));
                         p->r[3] = (*d)%(*s);
+                        p->cycles++;
                 } break;
                 // MOD
                 case 5: {
@@ -247,6 +254,7 @@ static void step(struct cpu *p) {
                 case 0x13: {
                         // push IP on stack
                         p->mem[p->sp--] = p->ip;
+                        p->cycles++;
                         // jump
                         p->ip = *d; 
                 } break;
@@ -285,6 +293,7 @@ int main(int argc, char **argv) {
 
         load(&p, i_fn);
 
+        p.cycles = 0;
         p.sp = 0x7FFF;
 
         int c = 0;
