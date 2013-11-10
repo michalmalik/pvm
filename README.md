@@ -288,8 +288,7 @@ JMP end
 
 ##### define
 
-Currently, defines are limited for each .asm file. The limit is defined in asm.c -> DEFINES_LIMIT.
-Don't forget that's for EACH file.
+Currently, defines are limited for each .asm file. The limit is defined in asm.c -> **DEFINES_LIMIT**.
 
 ###### data.asm
 ```
