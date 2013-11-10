@@ -1,5 +1,5 @@
 ### PCPU Specifications
-* **16-bit** CPU
+* **16-bit** CPU, 16-bit words
 * **0x8000 words**
 * **8 16-bit general purpose registers** (A, B, C, D, X, Y, Z, J), **stack pointer** (SP), **instruction pointer** (IP)
 * **OF** (overflow) flag
@@ -282,12 +282,14 @@ JMP end
 .const_D	DAT 	0x40
 
 :end
-
 ```
 
 #### Macros
 
 ##### define
+
+Currently, defines are limited for each .asm file. The limit is defined in asm.c -> DEFINES_LIMIT.
+Don't forget that's for EACH file.
 
 ###### data.asm
 ```
