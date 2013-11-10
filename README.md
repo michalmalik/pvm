@@ -248,6 +248,33 @@ SET [A+PERSON_HEIGHT],0xB4
 00010000
 ```
 
+#### TESTING: Example no. 7
+```
+JMP start
+
+#define CONST_C 	0x30
+.const_A 	DAT 	0x10
+
+:start
+
+SET A,const_A
+SET A,const_B
+SET A,[B+const_A]
+SET A,[B+const_B]
+SET A,[const_A+B]
+SET A,[const_B+B]
+SET A,[const_A+0x10]
+SET A,[const_B+0x10]
+SET A,[0x10+const_A]
+SET A,[0x10+const_B]
+SET A,[const_A]
+SET A,[const_B]
+SET A,[const_A+CONST_C]
+SET A,[const_B+CONST_C]
+SET A,[CONST_C+const_A]
+SET A,[CONST_C+const_B]		; invalid
+```
+
 #### Macros
 
 ##### define
