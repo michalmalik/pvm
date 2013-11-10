@@ -51,7 +51,7 @@
 | 0x10   | IFGE A,B         | if A>=B                             		     | 1-3     |
 | 0x11   | IFLE A,B         | if A<=B                             		     | 1-3     |
 | 0x12   | JMP label        | jump to label            		  		     | 2-3     |
-| 0x13   | JTR label        | push IP of next instruction on stack, jump to label    | 2-3     |
+| 0x13   | JTR label        | push IP of next instruction on stack, jump to label    | 2       |
 | 0x14   | PUSH A           | push A on stack, SP--	  		     	     | 1-2     |
 | 0x15   | POP A            | pops value from stack to A, SP++         		     | 1-2     |
 | 0x16   | RET              | pops value from stack to IP                 	     | 2       |
