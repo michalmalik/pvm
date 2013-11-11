@@ -1,6 +1,5 @@
 ### PCPU Specifications
 * **16-bit** CPU, 16-bit words
-* clock **33 Khz**
 * **0x8000 words**
 * **8 16-bit general purpose registers** (A, B, C, D, X, Y, Z, J), **stack pointer** (SP), **instruction pointer** (IP)
 * **OF** (overflow) flag
