@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdarg.h>
+#include <time.h>
 
 typedef unsigned char u8;
 typedef unsigned short u16;
@@ -9,7 +10,11 @@ typedef unsigned short u16;
 extern void disassemble(u16 *mem, u16 ip, char *out);
 
 #define zero(a)     (memset((a),0,sizeof((a))))
-#define count(a)    (sizeof((a))/sizeof((a)[0]))        
+#define count(a)    (sizeof((a))/sizeof((a)[0]))   
+
+// 1 Mhz
+// nanoseconds
+#define CPU_TICK                1000           
 
 #define STACK_START             0x7FFF
 #define STACK_LIMIT             0x2000
@@ -162,6 +167,9 @@ static void step(struct cpu *p) {
         disassemble(p->mem, p->ip, out);
         printf("%s", out);
 
+        int start_cyc = p->cycles;
+        struct timespec slp = {0, 0};
+
         p->cycles++;
 
         u16 op = p->mem[p->ip++];
@@ -304,7 +312,11 @@ static void step(struct cpu *p) {
                 default: break;
         }
 
+        slp.tv_nsec = (p->cycles-start_cyc)*CPU_TICK;
+
         debug(p);
+
+        nanosleep(&slp, NULL);
 }
 
 int main(int argc, char **argv) {
@@ -324,11 +336,18 @@ int main(int argc, char **argv) {
         p.cycles = 0;
         p.sp = STACK_START;
 
-        int c = 0;
+        int run = 0, c = 0;
         int w1 = 0, w2 = 0;
         do {
                 if(p.sp < STACK_START-STACK_LIMIT) {
                         error("STACK_LIMIT(%04X) reached", STACK_LIMIT);
+                }
+
+                if(!run) {
+                        c = getchar();
+                } else {
+                        step(&p);
+                        continue;
                 }
 
                 if(c == 's') {
@@ -340,8 +359,10 @@ int main(int argc, char **argv) {
                         scanf("%04X %04X", &w1, &w2);
                         printf("([0x%04X] = %04X) -> %04X\n", w1, p.mem[w1], w2);
                         p.mem[w1] = w2;
+                } else if(c == 'r') {
+                        run = 1;
                 }
-        } while(p.mem[p.ip] && (c = getchar()));
+        } while(p.mem[p.ip]);
 
         memory_dmp(&p, o_fn);
 
