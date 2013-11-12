@@ -317,7 +317,6 @@ JMP start
 	; 2 - write, 0xBBBB
 	; 3 - exit, 0xCCCC
 
-
 	; SYSCALL is called from IVT
 	; by software interrupt 0xAA
 
