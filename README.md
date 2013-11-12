@@ -90,7 +90,7 @@ JMP start
 .mem_address 	DAT 	0
 
 :write_mem
-	POP Z
+	SUB SP,1
 
 	POP [mem_address] 	; mem_address
 	POP C 			; count
@@ -104,7 +104,7 @@ JMP start
 		ADD A,1
 		IFN A,C
 			JMP loop
-	PUSH Z
+	ADD SP,4
 	RET
 
 :start
@@ -113,6 +113,7 @@ PUSH 0xF00D
 PUSH 0x8
 PUSH 0x1000
 JTR write_mem
+ADD SP,3
 ```
 
 #### Example no. 4
@@ -129,11 +130,13 @@ PUSH 0xF00D		; value
 PUSH 0x8 		; count
 PUSH 0x1000 		; mem_address
 JTR write_mem
+ADD SP,3
 
 PUSH 0xBEAF 		; value
 PUSH 0x8 		; count
 PUSH 0x2000 		; mem_address
 JTR write_mem
+ADD SP,3
 ```
 
 ##### memory.asm
@@ -141,7 +144,7 @@ JTR write_mem
 .mem_address 	DAT 	0
 
 :write_mem
-	POP Z
+	SUB SP,1
 
 	POP [mem_address] 	; mem_address
 	POP C 			; count
@@ -156,7 +159,7 @@ JTR write_mem
 		IFN A,C
 			JMP loop
 
-	PUSH Z
+	ADD SP,4
 	RET
 ```
 
@@ -177,11 +180,13 @@ PUSH 0xF00D
 PUSH 0x8
 PUSH [mem_1]
 JTR write_mem
+ADD SP,3
 
 PUSH 0x8
 PUSH [mem_1]
 PUSH [mem_2]
 JTR copy_mem
+ADD SP,3
 ```
 
 ##### memory.asm
@@ -190,7 +195,7 @@ JTR copy_mem
 .src_addr 	DAT 	0
 
 :write_mem
-	POP Z
+	SUB SP,1
 
 	POP [dst_addr]		; mem_address
 	POP C 			; count
@@ -205,11 +210,11 @@ JTR copy_mem
 		IFN A,C
 			JMP loop
 
-	PUSH Z
+	ADD SP,4
 	RET
 
 :copy_mem
-	POP Z
+	SUB SP,1
 
 	POP [dst_addr]
 	POP [src_addr] 
@@ -224,7 +229,7 @@ JTR copy_mem
 		ADD A,1
 		IFN A,C
 			JMP loop_2
-	PUSH Z
+	ADD SP,4
 	RET
 ```
 
@@ -267,8 +272,6 @@ STO [A+PERSON_HEIGHT],0xB4
 #define IVT_SYSCALL_EXIT	3
 
 :handle_ivt_interrupt
-	POP Z
-
 	; check what type of IVT interrupt
 	; to call
 	; just syscall for the moment
@@ -278,12 +281,9 @@ STO [A+PERSON_HEIGHT],0xB4
 	IFE A,IVT_SYSCALL
 		JTR handle_ivt_syscall
 
-	PUSH Z
 	RETI
 
 :handle_ivt_syscall
-	POP Y
-
 	; handle_ivt_syscall_read
 	; set J to 0xAAAA
 	IFE B,IVT_SYSCALL_READ
@@ -297,7 +297,6 @@ STO [A+PERSON_HEIGHT],0xB4
 	IFE B,IVT_SYSCALL_EXIT
 		STO J,0xCCCC
 
-	PUSH Y
 	RET
 ```
 
