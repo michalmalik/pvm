@@ -98,13 +98,13 @@ JMP start
 	POP Y 			; value
 
 	STO A,0
-	:loop
+	:write_mem_loop
 		STO X,[mem_address]
 		ADD X,A
 		STO [X],Y
 		ADD A,1
 		IFN A,C
-			JMP loop
+			JMP write_mem_loop
 	ADD SP,4
 	RET
 
@@ -152,13 +152,13 @@ ADD SP,3
 	POP Y 			; value
 
 	STO A,0
-	:loop
+	:write_mem_loop
 		STO X,[mem_address]
 		ADD X,A
 		STO [X],Y
 		ADD A,1
 		IFN A,C
-			JMP loop
+			JMP write_mem_loop
 
 	ADD SP,4
 	RET
@@ -203,13 +203,13 @@ ADD SP,3
 	POP Y 			; value
 
 	STO A,0
-	:loop
+	:write_mem_loop
 		STO X,[dst_addr]
 		ADD X,A
 		STO [X],Y
 		ADD A,1
 		IFN A,C
-			JMP loop
+			JMP write_mem_loop
 
 	ADD SP,4
 	RET
@@ -221,7 +221,7 @@ ADD SP,3
 	POP [src_addr] 
 	POP C 
 
-	:loop_2
+	:copy_mem_loop
 		STO X,[dst_addr]
 		STO Y,[src_addr] 
 		ADD X,A
@@ -229,7 +229,7 @@ ADD SP,3
 		STO [X],[Y]
 		ADD A,1
 		IFN A,C
-			JMP loop_2
+			JMP copy_mem_loop
 	ADD SP,4
 	RET
 ```
