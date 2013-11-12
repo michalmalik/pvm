@@ -62,7 +62,7 @@
 | OP     | INS              | description                                            | cycles  |
 | :----: | ---------------- | ------------------------------------------------------ | :-----: |
 | 0x18   | IAR A            | set IA to A                                            | 1       |
-| 0x19   | INT A            | jump to IA with the message A                          | 1       |
+| 0x19   | INT A            | jump to IA, with the message A set to register A       | 1-2     |
 
 
 ### Assembly language
@@ -257,7 +257,85 @@ STO [A+PERSON_HEIGHT],0xB4
 00010000
 ```
 
-#### TESTING COMPILER: Example no. 7
+#### Example no. 7
+
+##### ivt.asm
+```
+#define IVT_SYSCALL		0xAA
+#define IVT_SYSCALL_READ	1
+#define IVT_SYSCALL_WRITE	2
+#define IVT_SYSCALL_EXIT	3
+
+:handle_ivt_interrupt
+	POP Z
+
+	; check what type of IVT interrupt
+	; to call
+	; just syscall for the moment
+
+	; B must be set to call syscall
+	; routines
+	IFE A,IVT_SYSCALL
+		JTR handle_ivt_syscall
+
+	PUSH Z
+	RETI
+
+:handle_ivt_syscall
+	POP Y
+
+	; handle_ivt_syscall_read
+	; set J to 0xAAAA
+	IFE B,IVT_SYSCALL_READ
+		STO J,0xAAAA
+
+	; handle_ivt_syscall_write
+	IFE B,IVT_SYSCALL_WRITE
+		STO J,0xBBBB
+
+	; handle_ivt_syscall_exit
+	IFE B,IVT_SYSCALL_EXIT
+		STO J,0xCCCC
+
+	PUSH Y
+	RET
+```
+
+##### test.asm
+```
+JMP start
+
+#include "ivt.asm"
+
+:start
+	IAR handle_ivt_interrupt
+
+	; SYSCALL routine is determined
+	; by the register B and the return value
+	; by the register J for the moment
+	; 1 - read, 0xAAAA
+	; 2 - write, 0xBBBB
+	; 3 - exit, 0xCCCC
+
+
+	; SYSCALL is called from IVT
+	; by software interrupt 0xAA
+
+	; J should be 0xAAA
+	STO B,1 	; read
+	INT 0xAA
+
+	; when INT is called, IA is zeroed
+	IAR handle_ivt_interrupt
+	STO B,2 	; write
+	INT 0xAA
+
+	IAR handle_ivt_interrupt
+	STO B,3 	; exit
+	INT 0xAA
+```
+
+#### COMPILER TEST: Example no. 8
 ```
 JMP start
 
