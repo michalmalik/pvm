@@ -1,7 +1,7 @@
 ### PCPU Specifications
 * **16-bit** CPU, 16-bit words
 * **0x8000 words**
-* **8 16-bit general purpose registers** (A,B,C,D,X,Y,Z,J), **stack pointer** (SP), **instruction pointer** (IP), interrupt address (IA)
+* **8 16-bit general purpose registers** (A,B,C,D,X,Y,Z,J), **stack pointer** (SP), **instruction pointer** (IP), **interrupt address** (IA)
 * **OF** (overflow) flag
 * **0x2000 words** global stack size, start `0x7FFF`, goes down
 * instruction takes maximum **6 bytes** 
@@ -55,14 +55,14 @@
 | 0x14   | PUSH A           | push A on stack, SP--	  		     	     | 1-2     |
 | 0x15   | POP A            | pops value from stack to A, SP++         		     | 1-2     |
 | 0x16   | RET              | pops value from stack to IP                 	     | 1       |
-| 0x17   | RETI             | sets IA to 0, pops value from stack to IP              | 1       | ň
+| 0x17   | RETI             | sets IA to 0, pops value from stack to IP              | 1       |
 
 #### Interrupt instructions
 ------------------------------------------------------------------------------------------------
 | OP     | INS              | description                                            | cycles  |
 | :----: | ---------------- | ------------------------------------------------------ | :-----: |
 | 0x18   | IAR A            | set IA to A                                            | 1       |
-| 0x19   | INT A            | jump to IA with the message A                         | 1       |
+| 0x19   | INT A            | jump to IA with the message A                          | 1       |
 
 
 ### Assembly language
