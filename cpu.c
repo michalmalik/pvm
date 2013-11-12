@@ -68,6 +68,7 @@ static void debug(struct cpu *p) {
         printf("%2s: 0x%04X\n", "Y", p->r[5]);
         printf("%2s: 0x%04X\n", "Z", p->r[6]);
         printf("%2s: 0x%04X\n", "J", p->r[7]);
+        printf("%2s: 0x%04X\n", "IA", p->ia);
         printf("%2s: 0x%04X\n", "SP", p->sp);
         printf("%2s: 0x%04X\n", "IP", p->ip);
         printf("%2s: 0x%04X\n", "OF", p->of);
