@@ -8,7 +8,8 @@ static const char *opc[] = {
 	"STO", "ADD", "SUB", "MUL", "DIV", "MOD",
 	"NOT", "AND", "OR", "XOR", "SHL", "SHR",
 	"IFE", "IFN", "IFG", "IFL", "IFGE", "IFLE", 
-	"JMP", "JTR", "PUSH", "POP", "RET"
+	"JMP", "JTR", "PUSH", "POP", "RET", "RETI",
+	"IAR", "INT"
 };
 
 static const char *regs = "ABCDXYZJ";
@@ -51,9 +52,9 @@ void disassemble(u16 *mem, u16 ip, char *out) {
 		sprintf(out+strlen(out), "%s ", opc[op]);
 	}
 
-	if((op == 6) || (op >= 0x12 && op <= 0x15)) {
+	if((op == 6) || (op >= 0x12 && op <= 0x15) || (op >= 0x18 && op <= 0x19)) {
 		dis_opr(mem, ins>>11, ip, out);
-	} else if(op == 0x16) {
+	} else if(op == 0x16 || op == 0x17) {
 
 	} else if(op > ins_num) {
 

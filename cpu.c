@@ -16,7 +16,7 @@ extern void disassemble(u16 *mem, u16 ip, char *out);
 
 struct cpu {
         u16 r[8];
-        u16 sp, ip;
+        u16 sp, ip, ia;
         u8 of:1;
         u16 mem[0x8000];
         int cycles;
@@ -273,6 +273,32 @@ static void step(struct cpu *p) {
                         // pop IP from stack
                         p->ip = p->mem[++p->sp];
                         p->mem[p->sp] = 0;
+                } break;
+                // RETI
+                case 0x17: {
+                        // pop IP from stack
+                        p->ip = p->mem[++p->sp];
+                        p->mem[p->sp] = 0;
+                        // set IA to 0, means we are returning
+                        // from interrupt routine
+                        p->ia = 0;
+                } break;
+                // IAR 
+                case 0x18: {
+                        // set IA to a value
+                        // means we are expecting an interrupt routine
+                        // to be entered
+                        p->ia = *d;
+
+                } break;
+                // INT
+                case 0x19: {
+                        // set A to the message
+                        p->r[0] = *d;
+                        // push return IP to stack
+                        p->mem[p->sp--] = p->ip;
+                        // jump to IA
+                        p->ip = p->ia;
                 } break;
                 default: break;
         }

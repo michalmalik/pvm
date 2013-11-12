@@ -76,24 +76,26 @@ static char *sym_fn = NULL;
 
 static const char *tn[] = {
 	"A", "B", "C", "D", "X", "Y", "Z", "J",
-	"SP", "IP",
+	"SP", "IP", "IA",
 	"STO",
 	"ADD", "SUB", "MUL", "DIV", "MOD",
 	"NOT", "AND", "OR", "XOR", "SHL", "SHR",
 	"IFE", "IFN", "IFG", "IFL", "IFGE", "IFLE", "JMP", "JTR",
-	"PUSH", "POP", "RET", "DAT", 
+	"PUSH", "POP", "RET", "RETI", "IAR", "INT", 
+	"DAT", 
 	".", "#", ":", ",", "[", "]", "+",
 	"(NUMBER)", "(STRING)", "(QUOTED STRING)", "(EOF)"
 };
 
 enum _tokens {
 	tA, tB, tC, tD, tX, tY, tZ, tJ,
-	tSP, tIP,
+	tSP, tIP, tIA,
 	tSTO, 
 	tADD, tSUB, tMUL, tDIV, tMOD,
 	tNOT, tAND, tOR, tXOR, tSHL, tSHR,
 	tIFE, tIFN, tIFG, tIFL, tIFGE, tIFLE, tJMP, tJTR,
-	tPUSH, tPOP, tRET, tDAT,
+	tPUSH, tPOP, tRET, tRETI, tIAR, tINT,
+	tDAT,
 	tDOT, tHASH, tCOLON, tCOMMA, tBS, tBE, tPLUS,
 	tNUM, tSTR, tQSTR, tEOF
 };
@@ -389,7 +391,7 @@ next_line:
 }
 
 int next() {
-	return (cf->token = next_token());		
+	return (cf->token = next_token());
 }
 
 void expect(int t) {
@@ -604,6 +606,9 @@ void assemble_i(int inst, u16 d, u16 s, int v1, int v2) {
 		case tPUSH: o = 0x14; break;
 		case tPOP: o = 0x15; break;
 		case tRET: o = 0x16; break;
+		case tRETI: o = 0x17; break;
+		case tIAR: o = 0x18; break;
+		case tINT: o = 0x19; break;
 	}
 	MEM[IP++] = (u16)(o|(s<<6)|(d<<11));
 	if(v1 != -1) MEM[IP++] = v1&0xFFFF;		
@@ -720,13 +725,14 @@ again:
 				break;
 			}
 			case tNOT:
-			case tJMP: case tJTR: case tPUSH: case tPOP: {
+			case tJMP: case tJTR: case tPUSH: case tPOP: 
+			case tIAR: case tINT: {
 				assemble_o(&d, &v1);
 				assemble_i(t, d, 0, v1, -1);
 				break;	
 			}
 
-			case tRET: {
+			case tRET: case tRETI: {
 				assemble_i(t, 0, 0, -1, -1);
 				break;
 			}
