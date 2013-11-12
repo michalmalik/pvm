@@ -9,8 +9,9 @@ typedef unsigned short u16;
 extern void disassemble(u16 *mem, u16 ip, char *out);
 
 #define zero(a)     (memset((a),0,sizeof((a))))
-#define count(a)    (sizeof((a))/sizeof((a)[0]))
+#define count(a)    (sizeof((a))/sizeof((a)[0]))        
 
+#define STACK_START             0x7FFF
 #define STACK_LIMIT             0x2000
 
 struct cpu {
@@ -142,7 +143,7 @@ static u16 *getopr(struct cpu *p, u8 b, u16 *w) {
         return o;
 }
 
-int word(u16 op) {
+static int word(u16 op) {
         u8 wc = 1;
         u16 o = op&0x3f;
         u8 d = op>>11;
@@ -294,17 +295,17 @@ int main(int argc, char **argv) {
         load(&p, i_fn);
 
         p.cycles = 0;
-        p.sp = 0x7FFF;
+        p.sp = STACK_START;
 
         int c = 0;
         int w1 = 0, w2 = 0;
         do {
-                if(p.sp < 0x7FFF-STACK_LIMIT) {
-                        error("STACK_LIMIT(%04X) reached");
+                if(p.sp < STACK_START-STACK_LIMIT) {
+                        error("STACK_LIMIT(%04X) reached", STACK_LIMIT);
                 }
 
                 if(c == 's') {
-                        step(&p);
+                        step(&p);       
                 } else if(c == 'd') {
                         scanf("%04X", &w1);
                         printf("[0x%04X] = %04X\n", w1, p.mem[w1]);
