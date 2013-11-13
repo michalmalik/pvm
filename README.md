@@ -91,7 +91,7 @@ JMP start
 .mem_address 	DAT 	0
 
 :write_mem
-	SUB SP,1
+	ADD SP,1
 
 	POP [mem_address] 	; mem_address
 	POP C 			; count
@@ -105,7 +105,7 @@ JMP start
 		ADD A,1
 		IFN A,C
 			JMP write_mem_loop
-	ADD SP,4
+	SUB SP,4
 	RET
 
 :start
@@ -145,7 +145,7 @@ ADD SP,3
 .mem_address 	DAT 	0
 
 :write_mem
-	SUB SP,1
+	ADD SP,1
 
 	POP [mem_address] 	; mem_address
 	POP C 			; count
@@ -160,7 +160,7 @@ ADD SP,3
 		IFN A,C
 			JMP write_mem_loop
 
-	ADD SP,4
+	SUB SP,4
 	RET
 ```
 
@@ -196,7 +196,7 @@ ADD SP,3
 .src_addr 	DAT 	0
 
 :write_mem
-	SUB SP,1
+	ADD SP,1
 
 	POP [dst_addr]		; mem_address
 	POP C 			; count
@@ -211,11 +211,11 @@ ADD SP,3
 		IFN A,C
 			JMP write_mem_loop
 
-	ADD SP,4
+	SUB SP,4
 	RET
 
 :copy_mem
-	SUB SP,1
+	ADD SP,1
 
 	POP [dst_addr]
 	POP [src_addr] 
@@ -230,7 +230,7 @@ ADD SP,3
 		ADD A,1
 		IFN A,C
 			JMP copy_mem_loop
-	ADD SP,4
+	SUB SP,4
 	RET
 ```
 
