@@ -396,6 +396,8 @@ JMP end
 
 ##### define
 
+Currently, there's no limit for defines for a single file. 
+
 ###### data.asm
 ```
 JMP start
