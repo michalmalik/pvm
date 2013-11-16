@@ -84,7 +84,29 @@ STO C,10
 		JMP loop
 ```
 
-#### Example no. 3
+#### Example. no 3
+```
+JMP start
+
+:table
+    DAT 0xF00D
+    DAT 0xBEEF
+    DAT 0xFEED
+    DAT 0xBEEE
+
+:start
+    STO A,0
+    STO C,4
+
+    ; Loop through table
+    :loop
+        STO [0x1000+A],[table+A]
+        ADD A,1
+        IFN A,C
+            JMP loop
+```
+
+#### Example no. 4
 ```
 JMP start
 
@@ -117,7 +139,7 @@ JTR write_mem
 ADD SP,3
 ```
 
-#### Example no. 4
+#### Example no. 5
 
 ##### test.asm
 ```
@@ -164,7 +186,7 @@ ADD SP,3
 	RET
 ```
 
-#### Example no. 5
+#### Example no. 6
 
 ##### test.asm
 ```
@@ -234,7 +256,7 @@ ADD SP,3
 	RET
 ```
 
-#### Example no. 6
+#### Example no. 7
 ```
 JMP start
 
@@ -263,7 +285,7 @@ STO [A+PERSON_HEIGHT],0xB4
 00010000
 ```
 
-#### Example no. 7
+#### Example no. 8
 
 ##### ivt.asm
 ```
@@ -334,7 +356,7 @@ JMP start
 	INT 0xAA
 ```
 
-#### COMPILER TEST: Example no. 8
+#### COMPILER TEST: Example no. 9
 ```
 JMP start
 
