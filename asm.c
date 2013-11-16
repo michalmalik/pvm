@@ -4,19 +4,33 @@
 #include <ctype.h>
 #include <stdarg.h>
 
+#define zero(a)     memset((a), 0, sizeof((a)))
+#define count(a)    sizeof((a))/sizeof((a)[0])
+
 typedef unsigned char u8;
 typedef unsigned short u16;
 
-#define zero(a)     (memset((a),0,sizeof((a))))
-#define count(a)    (sizeof((a))/sizeof((a)[0]))
+union _mem {
+	struct {
+		u8 lo;
+		u8 hi;
+	} _b;
+	u16 _w;
+};
 
-#define DEFINES_LIMIT	64
-
-static u16 MEM[0x8000];
+static union _mem MEM[0x8000];
 static u16 IP = 0;
 
-// TODO: Take strings as values for defines
+/*
+	struct cdefine is a linked list
+
+	WARNING:
+
+	I am assuming DEFINES are NEVER forward referenced
+*/
 struct cdefine {
+	struct cdefine *next;
+
 	char name[128];
 	u16 value;
 };
@@ -34,19 +48,19 @@ struct file_asm {
 	int token;
 	u16 tokennum;
 
-	// TODO: Delete counter from main struct
-	u16 defn;
-	// TODO: More defines
-	struct cdefine defines[DEFINES_LIMIT];
+	struct cdefine *defines;
 };
 
+/*
+	struct symbol and struct fix are 
+	linked lists
+*/
 struct symbol {
 	struct symbol *next;
 
 	char name[128];
-	u16 ip;
-	u16 num_value;
-	char str_value[128];
+	u16 addr;
+	u16 value;
 
 	struct file_asm f;
 };
@@ -56,17 +70,14 @@ struct fix {
 
 	char fn[64];
 	char name[128];
-	char str_value[128];
 	char linebuffer[256];
+	int linenumber;
 
 	u16 fix_addr;
-	u16 num_value;
-
-	int linenumber;
+	u16 const_val;
 };
 
-static struct file_asm mf;
-static struct file_asm *cf = &mf;
+static struct file_asm *cf = NULL;
 
 static struct symbol *symbols = NULL;
 static struct fix *fixes = NULL;
@@ -87,7 +98,7 @@ static const char *tn[] = {
 	"(NUMBER)", "(STRING)", "(QUOTED STRING)", "(EOF)"
 };
 
-enum _tokens {
+enum {
 	tA, tB, tC, tD, tX, tY, tZ, tJ,
 	tSP, tIP, tIA,
 	tSTO, 
@@ -134,25 +145,7 @@ void error(const char *format, ...) {
 	exit(1);
 }
 
-void cleanstr(char *str) {
-	size_t i;
-	for(i = 0; i < strlen(str); i++) {
-		if(str[i]=='\n') str[i]='\0';
-	}
-}
-
-void clean_fs(struct file_asm *fs) {
-	fclose(fs->fp);
-	zero(fs->i_fn);
-	zero(fs->tokenstr);
-	zero(fs->linebuffer);
-	fs->linenumber = 0;
-	fs->lineptr = NULL;
-	fs->token = 0;
-	fs->tokennum = 0;
-}
-
-int init_asm(const char *i_fn) {
+void init_asm(const char *i_fn) {
 	struct file_asm fs;
 	size_t i;
 
@@ -167,12 +160,7 @@ int init_asm(const char *i_fn) {
 	fs.token = 0;
 	fs.tokennum = 0;
 
-	fs.defn = 0;
-
-	for(i = 0; i < count(fs.defines); i++) {
-		zero(fs.defines[i].name);
-		fs.defines[i].value = 0;
-	}
+	fs.defines = NULL;
 
 	strcpy(fs.i_fn, i_fn);
 
@@ -186,66 +174,63 @@ int init_asm(const char *i_fn) {
 	}
 
 	*cf = fs;
-
-	return 1;
 }
 
-void output(const char *fn) {
-	FILE *fp = NULL;
-	size_t i;
-
-	if((fp = fopen(fn, "wb")) == NULL) {
-		die("error: couldn't open/write to \"%s\"", fn);
-	}
-
-	for(i = 0; i < count(MEM); i++) {
-		fputc((MEM[i]>>8)&0xFF, fp);
-		fputc(MEM[i]&0xFF, fp);
-	}
-	fclose(fp);
-}
-
-void add_symbol(const char *name, u16 ip, u16 *num_value, char *str_value) {
+void add_symbol(const char *name, u16 addr, u16 *value) {
 	struct symbol *s = NULL;
 	for(s = symbols; s; s = s->next) {
 		if(!strcmp(name, s->name)) {
-			error("symbol \"%s\" already defined", name);
+			error("symbol \"%s\" already defined here:\nline %d: %s", name, s->f.linenumber, s->f.linebuffer);
 		}
 	}
-	s = malloc(sizeof(struct symbol));
+	s = (struct symbol *)malloc(sizeof(struct symbol));
 
 	zero(s->name);
-	zero(s->str_value);
 
-	s->ip = ip;
+	s->addr = addr;
 	strcpy(s->name, name);
-	if(num_value) s->num_value = *num_value;
-	if(str_value) strcpy(s->str_value, str_value);
+	if(value) s->value = *value;
 	s->f = *cf;
+
 	s->next = symbols;
 	symbols = s;
 }
 
-void to_fix(const char *name, u16 ip, u16 *num_value, char *str_value) {
-	struct fix *f = malloc(sizeof(struct fix));
-	size_t i;
+void fix_symbol(const char *name, u16 addr, u16 *const_val) {
+	struct fix *f = (struct fix *)malloc(sizeof(struct fix));
 
-	zero(f->name);
-	zero(f->str_value);
+	f->next = NULL;
 	zero(f->fn);
+	zero(f->name);
 	zero(f->linebuffer);
 
-	f->fix_addr = ip;
 	strcpy(f->name, name);
-
 	strcpy(f->fn, cf->i_fn);
-	f->linenumber = cf->linenumber;
 	strcpy(f->linebuffer, cf->linebuffer);
 
-	if(num_value) f->num_value = *num_value;
-	if(str_value) strcpy(f->str_value, str_value);
+	f->fix_addr = addr;
+	f->linenumber = cf->linenumber;
+	if(const_val) f->const_val = *const_val;
+
 	f->next = fixes;
 	fixes = f;
+}
+
+void add_define(const char *name, u16 value) {
+	struct cdefine *d = NULL;
+	for(d = cf->defines; d; d = d->next) {
+		if(!strcmp(d->name, name)) error("define \"%s\" already defined", name);
+	}
+
+	d = (struct cdefine *)malloc(sizeof(struct cdefine));
+
+	zero(d->name);
+
+	strcpy(d->name, name);
+	d->value = value;
+
+	d->next = cf->defines;
+	cf->defines = d;
 }
 
 struct symbol *get_symbol(const char *name) {
@@ -254,6 +239,26 @@ struct symbol *get_symbol(const char *name) {
 		if(!strcmp(s->name, name)) return s;
 	}
 	return NULL;
+}
+
+struct cdefine *get_define(const char *name) {
+	struct cdefine *d = NULL;
+	for(d = cf->defines; d; d = d->next) {
+		if(!strcmp(d->name, name)) return d;
+	}
+	return NULL;
+}
+
+int is_defined(const char *name) {
+	struct symbol *s = NULL;
+	struct cdefine *d = NULL;
+	for(s = symbols; s; s = s->next) {
+		if(!strcmp(s->name, name)) return 1;
+	}
+	for(d = cf->defines; d; d = d->next) {
+		if(!strcmp(d->name, name)) return 1;
+	}
+	return 0;
 }
 
 void fix_symbols() {
@@ -265,7 +270,10 @@ void fix_symbols() {
 			die("%s: error: line %d, symbol \"%s\" is not defined, \"%s\"", f->fn, f->linenumber,
 				 f->name, f->linebuffer);
 		}
-		MEM[f->fix_addr] += s->ip + f->num_value;
+		// [symbol + const_val]
+		// symbol is always represented as its address in memory
+		// and const_val can be added to it
+		MEM[f->fix_addr]._w += s->addr + f->const_val;
 	}
 }
 
@@ -277,57 +285,37 @@ void dump_symbols(const char *fn) {
 		die("error: couldn't open/write to \"%s\"", fn);
 	}
 
+	fputs("Symbols\n-----------\n", fp);
 	for(s = symbols; s; s = s->next) {
-		if(s->str_value[0]) fprintf(fp, "%s %s 0x%04X \"%s\"\n", s->f.i_fn, s->name, s->ip, s->str_value);
-		else fprintf(fp, "%s %s 0x%04X 0x%04X\n", s->f.i_fn, s->name, s->ip, s->num_value);
+		fprintf(fp, "%s %s 0x%04X 0x%04X\n", s->f.i_fn, s->name, s->addr, s->value);
 	}
 
 	fclose(fp);
 }
 
-void add_define(const char *name, u16 value) {
-	size_t i;
-	if(cf->defn >= DEFINES_LIMIT) error("DEFINES_LIMIT(%d) reached for this file", DEFINES_LIMIT);
-
-	for(i = 0; i < DEFINES_LIMIT; i++) {
-		if(!strcmp(cf->defines[i].name, name)) error("define \"%s\" already defined", name);
+void free_defines_list() {
+	struct cdefine *head = cf->defines, *tmp = NULL;
+	while(head) {
+		tmp = head;
+		head = head->next;
+		free(tmp);
 	}
-
-	strcpy(cf->defines[cf->defn].name, name);
-	cf->defines[cf->defn].value = value;
-
-	cf->defn++;
-}
-
-struct cdefine *get_define(const char *name) {
-	size_t i;
-	for(i = 0; i < DEFINES_LIMIT; i++) {
-		if(!strcmp(cf->defines[i].name, name)) return &cf->defines[i];
-	}
-	return NULL;
-}
-
-int is_defined(const char *name) {
-	struct symbol *s;
-	size_t i;
-	for(s = symbols; s; s = s->next) {
-		if(!strcmp(s->name, name)) return 1;
-	}
-	for(i = 0; i < DEFINES_LIMIT; i++) {
-		if(!strcmp(cf->defines[i].name, name)) return 1;
-	}
-	return 0;
+	free(head);
 }
 
 int next_token() {
 	char c = 0, *x = 0;
-	zero(cf->tokenstr);
+	size_t i;
 next_line:
 	if(!*cf->lineptr) {
 		if(feof(cf->fp)) return tEOF;
 		if(fgets(cf->linebuffer, 256, cf->fp) == 0) return tEOF;
 		cf->lineptr = cf->linebuffer;
-		cleanstr(cf->linebuffer);
+		
+		for(i = 0; i < strlen(cf->linebuffer); i++) {
+			if(cf->linebuffer[i] == '\n') cf->linebuffer[i] = '\0';
+		}
+
 		cf->linenumber++;
 	}
 
@@ -366,6 +354,8 @@ next_line:
 		}
 		default: {
 			if(isalpha(c)) {
+				zero(cf->tokenstr);
+
 				cf->lineptr--;				
 				x = cf->tokenstr;
 				while(isalnum(*cf->lineptr) || *cf->lineptr == '_') {
@@ -406,20 +396,20 @@ void assemble_label(const char *name, int *v) {
 	struct cdefine *d = get_define(name);
 
 	if(*v == -1) {
-		if(s) *v = s->ip;
+		if(s) *v = s->addr;
 		else {
 			if(d) *v = d->value;
 			else {
-				to_fix(name, IP+1, NULL, NULL);
+				fix_symbol(name, IP+1, NULL);
 				*v = 0;
 			}
 		}
 	} else {
-		if(s) *v += s->ip;
+		if(s) *v += s->addr;
 		else {
 			if(d) *v += d->value;
 			else {
-				to_fix(name, IP+1, (u16 *)v, NULL);
+				fix_symbol(name, IP+1, (u16 *)v);
 				*v = 0;
 			}
 		}
@@ -433,39 +423,33 @@ void assemble_o(u16 *o, int *v) {
 		case tA: case tB: case tC: case tD:
 		case tX: case tY: case tZ: case tJ: {
 			*o = cf->token&0x7;
-			break;
-		}
+		} break;
 
 		// SP
 		case tSP: {
 			*o = 0x1A;
-			break;
-		}
+		} break;
 
 		// IP
 		case tIP: {
 			*o = 0x1B;
-			break;
-		}
+		} break;
 
 		// nextw
 		case tNUM: {
 			*o = 0x18;
 			*v = cf->tokennum;
-			break;
-		}
+		} break;
 
 		// nextw
 		case tSTR: {
 			*o = 0x18;
 			assemble_label(cf->tokenstr, v);
-			break;
-		}
+		} break;
 
 		default: {
 			if(cf->token != tBS) error("expected [");
-			break;
-		}
+		} break;
 	}
 
 	if(cf->token == tBS) {
@@ -610,30 +594,9 @@ void assemble_i(int inst, u16 d, u16 s, int v1, int v2) {
 		case tIAR: o = 0x18; break;
 		case tINT: o = 0x19; break;
 	}
-	MEM[IP++] = (u16)(o|(s<<6)|(d<<11));
-	if(v1 != -1) MEM[IP++] = v1&0xFFFF;		
-	if(v2 != -1) MEM[IP++] = v2&0xFFFF;
-}
-
-void assemble_dat() {
-	u16 b = 0;
-	size_t i;
-
-	next();
-	while(cf->token == tCOMMA) {
-		next();
-		if(cf->token == tNUM) {
-			MEM[IP++] = cf->tokennum;
-		} else if(cf->token == tQSTR) {
-			for(i = 0; i < strlen(cf->tokenstr); i++) {
-				b = 0;
-				b |= cf->tokenstr[i];
-				MEM[IP++] = b; 
-			}
-			MEM[IP++] = 0;		
-		}
-		next();
-	}
+	MEM[IP++]._w = (u16)(o|(s<<6)|(d<<11));
+	if(v1 != -1) MEM[IP++]._w = v1&0xFFFF;		
+	if(v2 != -1) MEM[IP++]._w = v2&0xFFFF;
 }
 
 int assemble() {
@@ -641,6 +604,7 @@ int assemble() {
 	int v1 = -1, v2 = -1;
 	int t;
 	u16 b = 0;
+	struct file_asm tf;
 	size_t i;
 
 	for(;;) {
@@ -649,13 +613,12 @@ again:
 		v1 = -1;
 		v2 = -1;
 		t = cf->token;
-		char sym[128];
 
 		switch(t) {
 			case tEOF: goto done;
 			case tCOLON: {
 				expect(tSTR);
-				add_symbol(cf->tokenstr, IP, &IP, NULL);
+				add_symbol(cf->tokenstr, IP, &IP);
 				break;
 			}
 			case tHASH: {
@@ -663,18 +626,15 @@ again:
 				if(!strcasecmp(cf->tokenstr, "include")) {			
 					expect(tQSTR);
 
-					struct file_asm tf = *cf;
-
-					char buf[64];
-					zero(buf);
+					char buf[64] = {0};
 					strcpy(buf, cf->tokenstr);
 
+					tf = *cf;
 					init_asm(buf);
 					assemble();
 					*cf = tf;
 				} else if(!strcasecmp(cf->tokenstr, "define")) {
-					char name[128];
-					zero(name);
+					char name[128] = {0};
 					expect(tSTR);
 					strcpy(name, cf->tokenstr);
 					expect(tNUM);
@@ -683,33 +643,43 @@ again:
 				break;
 			}
 			case tDOT: {
-				zero(sym);
+				char sym_name[128] = {0};
+				int add_sym = 1;
+
 				expect(tSTR);
-				strcpy(sym, cf->tokenstr);
+				strcpy(sym_name, cf->tokenstr);
+
 				expect(tDAT);
 				next();
-				if(cf->token == tNUM) {
-					add_symbol(sym, IP, &cf->tokennum, NULL);
-					MEM[IP++] = cf->tokennum;
-					
-					assemble_dat();
-					goto again;
-				} else if(cf->token == tQSTR) {
-					add_symbol(sym, IP, NULL, cf->tokenstr);
-					for(i = 0; i < strlen(cf->tokenstr); i++) {
-						b = 0;
-						b |= cf->tokenstr[i];
-						MEM[IP++] = b; 
-					}
-					MEM[IP++] = 0;
 
-					assemble_dat();
-					goto again;
-				} else {
-					error("expected value after DAT");
+			write_mem:
+				switch(cf->token) {
+					case tNUM: {
+						if(add_sym) add_symbol(sym_name, IP, &cf->tokennum);
+						MEM[IP++]._w = cf->tokennum;
+					} break;
+					case tQSTR: {
+						b = 0 | cf->tokenstr[0];
+						if(add_sym) add_symbol(sym_name, IP, &b);
+
+						for(i = 0; i < strlen(cf->tokenstr); i++) {
+							MEM[IP++]._b.lo = cf->tokenstr[i];
+						}
+					} break;
+					default: {
+						error("expected value after DAT");
+					} break;
 				}
-				break;
-			}
+
+				next();
+				if(cf->token == tCOMMA) {
+					add_sym = 0;
+					next();
+					goto write_mem;
+				}	
+
+				goto again;
+			} break;
 			
 			case tSTO:
 			case tADD: case tSUB: case tMUL: case tDIV:
@@ -736,6 +706,34 @@ again:
 				assemble_i(t, 0, 0, -1, -1);
 				break;
 			}
+
+			case tDAT: {
+				next();
+
+			_write_mem:
+				switch(cf->token) {
+					case tNUM: {
+						MEM[IP++]._w = cf->tokennum;
+					} break;
+					case tQSTR: {
+						for(i = 0; i < strlen(cf->tokenstr); i++) {
+							MEM[IP++]._b.lo = cf->tokenstr[i];
+						}
+					} break;
+					default: {
+						error("expected value after DAT");
+					} break;
+				}
+
+				next();
+				if(cf->token == tCOMMA) {
+					next();
+					goto _write_mem;
+				}
+
+				goto again;
+			}
+
 			default: {
 				error("invalid instruction \"%s\"", cf->tokenstr);
 				break;
@@ -743,8 +741,44 @@ again:
 		}
 	}
 done:
-	clean_fs(cf);
+	fclose(cf->fp);
+	free_defines_list();
 	return 1;
+}
+
+void output(const char *fn) {
+	FILE *fp = NULL;
+	size_t i;
+
+	if((fp = fopen(fn, "wb")) == NULL) {
+		die("error: couldn't open/write to \"%s\"", fn);
+	}
+
+	for(i = 0; i < count(MEM); i++) {
+		fprintf(fp, "%c%c", MEM[i]._b.hi, MEM[i]._b.lo);
+	}
+
+	fclose(fp);
+}
+
+void free_symbol_list() {
+	struct symbol *head = symbols, *tmp = NULL;
+	while(head) {
+		tmp = head;
+		head = head->next;
+		free(tmp);
+	}
+	free(head);
+}
+
+void free_fix_list() {
+	struct fix *head = fixes, *tmp = NULL;
+	while(head) {
+		tmp = head;
+		head = head->next;
+		free(tmp);
+	}
+	free(head);
 }
 
 int main(int argc, char **argv) {
@@ -752,19 +786,23 @@ int main(int argc, char **argv) {
 		die("usage: %s <source_file> <program> <symbols>", argv[0]);
 	}
 
+	zero(MEM);
+
 	o_fn = argv[2];
 	sym_fn = argv[3];
 
-	zero(MEM);
-
 	// Init file_asm structure for the main file
+	cf = (struct file_asm *)malloc(sizeof(struct file_asm));
 	init_asm(argv[1]); 
-
 	assemble();
-	fix_symbols();
 
+	fix_symbols();
 	dump_symbols(sym_fn);
+	
 	output(o_fn);
 
+	free_symbol_list();
+	free_fix_list();
+	free(cf);
 	return 0;
 }
