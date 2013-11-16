@@ -396,8 +396,6 @@ JMP end
 
 ##### define
 
-Currently, defines are limited for each .asm file. The limit is defined in asm.c -> **DEFINES_LIMIT**.
-
 ###### data.asm
 ```
 JMP start
