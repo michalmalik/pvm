@@ -4,13 +4,8 @@
 #include <stdarg.h>
 #include <time.h>
 
-typedef unsigned char u8;
-typedef unsigned short u16;
-
-extern void disassemble(u16 *mem, u16 ip, char *out);
-
 #define zero(a)     (memset((a),0,sizeof((a))))
-#define count(a)    (sizeof((a))/sizeof((a)[0]))   
+#define count(a)    (sizeof((a))/sizeof((a)[0]))
 
 // 1 Mhz
 // nanoseconds
@@ -18,6 +13,11 @@ extern void disassemble(u16 *mem, u16 ip, char *out);
 
 #define STACK_START             0x7FFF
 #define STACK_LIMIT             0x2000
+
+typedef unsigned char u8;
+typedef unsigned short u16;
+
+extern void disassemble(u16 *mem, u16 ip, char *out);
 
 struct cpu {
         u16 r[8];
@@ -83,7 +83,7 @@ static void debug(struct cpu *p) {
         printf("Stack:\n");
         size_t i;
         for(i = 0; i < 0x20; i++) {
-                printf("%04X ", p->mem[0x7FFF-i]);
+                printf("%04X ", p->mem[(STACK_START-0x1F)+i]);
                 if((i+1)%16==0) printf("\n");
         }
 }
@@ -321,7 +321,7 @@ static void step(struct cpu *p) {
 
 int main(int argc, char **argv) {
         if(argc < 3) {
-                error("%s <program> <memory_dump>", argv[0]);
+                error("usage: %s <program> <memory_dump>", argv[0]);
         }
 
         i_fn = argv[1];
