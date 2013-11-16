@@ -114,10 +114,8 @@ enum {
 #define LASTTOKEN	tEOF
 
 void die(const char *format, ...) {
-	char buf[512];
+	char buf[512] = {0};
 	va_list va;
-
-	zero(buf);
 
 	va_start(va, format);
 
@@ -128,12 +126,9 @@ void die(const char *format, ...) {
 }
 
 void error(const char *format, ...) {
-	char buf_1[512];
-	char buf_2[256];
+	char buf_1[512] = {0};
+	char buf_2[256] = {0};
 	va_list va;
-
-	zero(buf_1);
-	zero(buf_2);
 
 	va_start(va, format);
 
