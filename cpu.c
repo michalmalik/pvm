@@ -27,16 +27,10 @@ struct cpu {
         int cycles;
 };
 
-static char *i_fn = NULL;
-static char *o_fn = NULL;
-
 void error(const char *format, ...) {
-        char buf_1[512];
-        char buf_2[256];
+        char buf_1[512] = {0};
+        char buf_2[256] = {0};
         va_list va;
-
-        zero(buf_1);
-        zero(buf_2);
 
         va_start(va, format);
 
@@ -316,12 +310,15 @@ static void step(struct cpu *p) {
 }
 
 int main(int argc, char **argv) {
+        char i_fn[128] = {0};
+        char o_fn[128] = {0};
+
         if(argc < 3) {
                 error("usage: %s <program> <memory_dump>", argv[0]);
         }
 
-        i_fn = argv[1];
-        o_fn = argv[2];
+        strcpy(i_fn, argv[1]);
+        strcpy(o_fn, argv[2]);
 
         static struct cpu p;
         zero(&p);

@@ -4,12 +4,6 @@
 #include <ctype.h>
 #include <stdarg.h>
 
-/*
-
-	TODO: Prettier assembler error messages.
-
-*/
-
 #define zero(a)     memset((a), 0, sizeof((a)))
 #define count(a)    sizeof((a))/sizeof((a)[0])
 
@@ -27,13 +21,6 @@ union _mem {
 static union _mem MEM[0x8000];
 static u16 IP = 0;
 
-/*
-	struct cdefine is a linked list
-
-	WARNING:
-
-	I am assuming DEFINES are NEVER forward referenced
-*/
 struct cdefine {
 	struct cdefine *next;
 
@@ -49,6 +36,7 @@ struct file_asm {
 	
 	int linenumber;
 
+	char line[256];
 	char *lineptr;
 
 	int token;
@@ -57,10 +45,6 @@ struct file_asm {
 	struct cdefine *defines;
 };
 
-/*
-	struct symbol and struct fix are 
-	linked lists
-*/
 struct symbol {
 	struct symbol *next;
 
@@ -87,9 +71,6 @@ static struct file_asm *cf = NULL;
 
 static struct symbol *symbols = NULL;
 static struct fix *fixes = NULL;
-
-static char *o_fn = NULL;
-static char *sym_fn = NULL;
 
 static const char *tn[] = {
 	"A", "B", "C", "D", "X", "Y", "Z", "J",
@@ -154,6 +135,7 @@ void init_asm(const char *i_fn) {
 	zero(fs.i_fn);
 	zero(fs.tokenstr);
 	zero(fs.linebuffer);
+	zero(fs.line);
 
 	fs.linenumber = 0;
 
@@ -168,7 +150,7 @@ void init_asm(const char *i_fn) {
 	if((fs.fp = fopen(i_fn, "r")) == NULL) {
 		if(cf->fp) {
 			die("%s: error: line %d, file \"%s\" does not exist \n\n%s", cf->i_fn, 
-				cf->linenumber, fs.i_fn, cf->linebuffer);
+				cf->linenumber, fs.i_fn, cf->line);
 		} else {
 			die("error: file \"%s\" does not exist", fs.i_fn);
 		}
@@ -181,7 +163,7 @@ void add_symbol(const char *name, u16 addr, u16 *value) {
 	struct symbol *s = NULL;
 	for(s = symbols; s; s = s->next) {
 		if(!strcmp(name, s->name)) {
-			error("symbol \"%s\" already defined here:\n%s: line %d: %s", name, s->f.i_fn, s->f.linenumber, s->f.linebuffer);
+			error("symbol \"%s\" already defined here:\n%s: line %d: %s", name, s->f.i_fn, s->f.linenumber, s->f.line);
 		}
 	}
 	s = (struct symbol *)malloc(sizeof(struct symbol));
@@ -207,7 +189,7 @@ void fix_symbol(const char *name, u16 addr, u16 *const_val) {
 
 	strcpy(f->name, name);
 	strcpy(f->fn, cf->i_fn);
-	strcpy(f->linebuffer, cf->linebuffer);
+	strcpy(f->linebuffer, cf->line);
 
 	f->fix_addr = addr;
 	f->linenumber = cf->linenumber;
@@ -279,20 +261,11 @@ void fix_symbols() {
 	}
 }
 
-void dump_symbols(const char *fn) {
-	FILE *fp = NULL;
+void print_symbols() {
 	struct symbol *s = NULL;
-
-	if((fp = fopen(fn, "wb")) == NULL) {
-		die("error: couldn't open/write to \"%s\"", fn);
-	}
-
-	fputs("Symbols\n-----------\n", fp);
 	for(s = symbols; s; s = s->next) {
-		fprintf(fp, "%s %s 0x%04X 0x%04X\n", s->f.i_fn, s->name, s->addr, s->value);
+		printf("%s %s 0x%04X 0x%04X\n", s->f.i_fn, s->name, s->addr, s->value);
 	}
-
-	fclose(fp);
 }
 
 void free_defines_list() {
@@ -308,13 +281,14 @@ void free_defines_list() {
 int next_token() {
 	char c = 0, *x = 0;
 	size_t i;
+	int newline = 0;
 next_line:
 	if(!*cf->lineptr) {
 		if(feof(cf->fp)) return tEOF;
 		if(fgets(cf->linebuffer, 256, cf->fp) == 0) return tEOF;
 		cf->lineptr = cf->linebuffer;
-
 		cf->linenumber++;
+		newline = 1;
 	}
 
 	if(*cf->lineptr == '\n' || *cf->lineptr == '\r') {
@@ -325,6 +299,17 @@ next_line:
 	while(*cf->lineptr <= ' ') {
 		if(*cf->lineptr == 0) goto next_line;
 		cf->lineptr++;
+	}
+
+	// Copy clean line to cf->line for prettier
+	// error messages
+	if(newline) {
+		strcpy(cf->line, cf->lineptr);
+		for(i = 0; i < strlen(cf->line); i++) {
+			if(cf->line[i]=='\r'||cf->line[i]=='\n')
+				cf->line[i]='\0';
+		}
+		newline = 0;
 	}
 	
 	switch((c = *cf->lineptr++)) {
@@ -454,7 +439,7 @@ void assemble_o(u16 *o, int *v) {
 		} break;
 
 		default: {
-			if(cf->token != tBS) error("expected operand\n\n%s", cf->linebuffer);
+			if(cf->token != tBS) error("expected operand\n\n%s", cf->line);
 		} break;
 	}
 
@@ -477,7 +462,7 @@ void assemble_o(u16 *o, int *v) {
 					*o += 0x10;
 					assemble_label(cf->tokenstr, v);
 				} else {
-					error("expected [register+nextw]\n\n%s", cf->linebuffer);
+					error("expected [register+nextw]\n\n%s", cf->line);
 				}
 				next();
 			// [register]
@@ -503,7 +488,7 @@ void assemble_o(u16 *o, int *v) {
 				} else if(cf->token == tSTR) {
 					assemble_label(cf->tokenstr, v);
 				} else {
-					error("expected value\n\n%s", cf->linebuffer);
+					error("expected value\n\n%s", cf->line);
 				}
 				next();
 			}
@@ -532,7 +517,7 @@ void assemble_o(u16 *o, int *v) {
 					s_token = cf->token;
 					strcpy(s_buf, cf->tokenstr);
 				} else {
-					error("expected value\n\n%s", cf->linebuffer);
+					error("expected value\n\n%s", cf->line);
 				}
 				next();
 			}
@@ -566,7 +551,7 @@ void assemble_o(u16 *o, int *v) {
 		}
 		
 		if(cf->token != tBE) 
-			error("expected ]\n\n%s", cf->linebuffer);
+			error("expected ]\n\n%s", cf->line);
 	}
 } 
 
@@ -677,7 +662,7 @@ again:
 						}
 					} break;
 					default: {
-						error("expected value after DAT\n\n%s", cf->linebuffer);
+						error("expected value after DAT\n\n%s", cf->line);
 					} break;
 				}
 
@@ -731,7 +716,7 @@ again:
 						}
 					} break;
 					default: {
-						error("expected value after DAT\n\n%s", cf->linebuffer);
+						error("expected value after DAT\n\n%s", cf->line);
 					} break;
 				}
 
@@ -792,23 +777,25 @@ void free_fix_list() {
 }
 
 int main(int argc, char **argv) {
-	if(argc < 4) {
-		die("usage: %s <source_file> <program> <symbols>", argv[0]);
+	char i_fn[128] = {0};
+	char o_fn[128] = {0};
+
+	if(argc < 3) {
+		die("usage: %s <source_file> <program>", argv[0]);
 	}
 
 	zero(MEM);
 
-	o_fn = argv[2];
-	sym_fn = argv[3];
+	strcpy(i_fn, argv[1]);
+	strcpy(o_fn, argv[2]);
 
 	// Init file_asm structure for the main file
 	cf = (struct file_asm *)malloc(sizeof(struct file_asm));
-	init_asm(argv[1]); 
+	init_asm(i_fn); 
 	assemble();
-
 	fix_symbols();
-	dump_symbols(sym_fn);
-	
+
+	print_symbols();
 	output(o_fn);
 
 	free_symbol_list();

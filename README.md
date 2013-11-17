@@ -311,6 +311,7 @@ PUSH 0xB4		; height
 PUSH 0x12		; age
 PUSH ST_PERSON_MICHAL	; addr
 JTR create_person
+ADD SP,3
 ```
 
 #### Example no. 8
