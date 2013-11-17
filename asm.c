@@ -4,6 +4,12 @@
 #include <ctype.h>
 #include <stdarg.h>
 
+/*
+
+	TODO: Prettier assembler error messages.
+
+*/
+
 #define zero(a)     memset((a), 0, sizeof((a)))
 #define count(a)    sizeof((a))/sizeof((a)[0])
 
@@ -95,7 +101,7 @@ static const char *tn[] = {
 	"PUSH", "POP", "RET", "RETI", "IAR", "INT", 
 	"DAT", 
 	".", "#", ":", ",", "[", "]", "+",
-	"(NUMBER)", "(STRING)", "(QUOTED STRING)", "(EOF)"
+	"(NUMBER)", "(STRING)", "(QUOTED STRING)", "(EOL)", "(EOF)"
 };
 
 enum {
@@ -108,7 +114,7 @@ enum {
 	tPUSH, tPOP, tRET, tRETI, tIAR, tINT,
 	tDAT,
 	tDOT, tHASH, tCOLON, tCOMMA, tBS, tBE, tPLUS,
-	tNUM, tSTR, tQSTR, tEOF
+	tNUM, tSTR, tQSTR, tEOL, tEOF
 };
 
 #define LASTTOKEN	tEOF
@@ -161,7 +167,7 @@ void init_asm(const char *i_fn) {
 
 	if((fs.fp = fopen(i_fn, "r")) == NULL) {
 		if(cf->fp) {
-			die("%s: error: line %d, file \"%s\" does not exist \nin '%s'", cf->i_fn, 
+			die("%s: error: line %d, file \"%s\" does not exist \n\n%s", cf->i_fn, 
 				cf->linenumber, fs.i_fn, cf->linebuffer);
 		} else {
 			die("error: file \"%s\" does not exist", fs.i_fn);
@@ -175,7 +181,7 @@ void add_symbol(const char *name, u16 addr, u16 *value) {
 	struct symbol *s = NULL;
 	for(s = symbols; s; s = s->next) {
 		if(!strcmp(name, s->name)) {
-			error("symbol \"%s\" already defined here:\nline %d: %s", name, s->f.linenumber, s->f.linebuffer);
+			error("symbol \"%s\" already defined here:\n%s: line %d: %s", name, s->f.i_fn, s->f.linenumber, s->f.linebuffer);
 		}
 	}
 	s = (struct symbol *)malloc(sizeof(struct symbol));
@@ -214,7 +220,8 @@ void fix_symbol(const char *name, u16 addr, u16 *const_val) {
 void add_define(const char *name, u16 value) {
 	struct cdefine *d = NULL;
 	for(d = cf->defines; d; d = d->next) {
-		if(!strcmp(d->name, name)) error("define \"%s\" already defined", name);
+		if(!strcmp(d->name, name))
+			error("define \"%s\" already defined", name);
 	}
 
 	d = (struct cdefine *)malloc(sizeof(struct cdefine));
@@ -262,7 +269,7 @@ void fix_symbols() {
 	for(f = fixes; f; f = f->next) {
 		s = get_symbol(f->name);
 		if(!s) {
-			die("%s: error: line %d, symbol \"%s\" is not defined, \"%s\"", f->fn, f->linenumber,
+			die("%s: error: line %d, symbol \"%s\" is not defined\n\n%s", f->fn, f->linenumber,
 				 f->name, f->linebuffer);
 		}
 		// [symbol + const_val]
@@ -306,12 +313,13 @@ next_line:
 		if(feof(cf->fp)) return tEOF;
 		if(fgets(cf->linebuffer, 256, cf->fp) == 0) return tEOF;
 		cf->lineptr = cf->linebuffer;
-		
-		for(i = 0; i < strlen(cf->linebuffer); i++) {
-			if(cf->linebuffer[i] == '\n') cf->linebuffer[i] = '\0';
-		}
 
 		cf->linenumber++;
+	}
+
+	if(*cf->lineptr == '\n' || *cf->lineptr == '\r') {
+		*cf->lineptr = 0;
+		return tEOL;
 	}
 
 	while(*cf->lineptr <= ' ') {
@@ -332,6 +340,8 @@ next_line:
 			goto next_line;
 		}
 		case '"': {
+			zero(cf->tokenstr);
+
 			x = cf->tokenstr;
 			for(;;) {
 				switch((c = *cf->lineptr++)) {
@@ -413,6 +423,7 @@ void assemble_label(const char *name, int *v) {
 
 void assemble_o(u16 *o, int *v) {
 	next();
+
 	switch(cf->token) {
 		// register
 		case tA: case tB: case tC: case tD:
@@ -443,7 +454,7 @@ void assemble_o(u16 *o, int *v) {
 		} break;
 
 		default: {
-			if(cf->token != tBS) error("expected [");
+			if(cf->token != tBS) error("expected operand\n\n%s", cf->linebuffer);
 		} break;
 	}
 
@@ -466,7 +477,7 @@ void assemble_o(u16 *o, int *v) {
 					*o += 0x10;
 					assemble_label(cf->tokenstr, v);
 				} else {
-					error("expected [register+nextw]");
+					error("expected [register+nextw]\n\n%s", cf->linebuffer);
 				}
 				next();
 			// [register]
@@ -492,7 +503,7 @@ void assemble_o(u16 *o, int *v) {
 				} else if(cf->token == tSTR) {
 					assemble_label(cf->tokenstr, v);
 				} else {
-					error("expected value");
+					error("expected value\n\n%s", cf->linebuffer);
 				}
 				next();
 			}
@@ -521,7 +532,7 @@ void assemble_o(u16 *o, int *v) {
 					s_token = cf->token;
 					strcpy(s_buf, cf->tokenstr);
 				} else {
-					error("expected value");
+					error("expected value\n\n%s", cf->linebuffer);
 				}
 				next();
 			}
@@ -555,7 +566,7 @@ void assemble_o(u16 *o, int *v) {
 		}
 		
 		if(cf->token != tBE) 
-			error("expected ]");
+			error("expected ]\n\n%s", cf->linebuffer);
 	}
 } 
 
@@ -611,6 +622,10 @@ again:
 
 		switch(t) {
 			case tEOF: goto done;
+			case tEOL: {
+				next();
+				goto again;
+			}
 			case tCOLON: {
 				expect(tSTR);
 				add_symbol(cf->tokenstr, IP, &IP);
@@ -662,7 +677,7 @@ again:
 						}
 					} break;
 					default: {
-						error("expected value after DAT");
+						error("expected value after DAT\n\n%s", cf->linebuffer);
 					} break;
 				}
 
@@ -716,7 +731,7 @@ again:
 						}
 					} break;
 					default: {
-						error("expected value after DAT");
+						error("expected value after DAT\n\n%s");
 					} break;
 				}
 
