@@ -731,7 +731,7 @@ again:
 						}
 					} break;
 					default: {
-						error("expected value after DAT\n\n%s");
+						error("expected value after DAT\n\n%s", cf->linebuffer);
 					} break;
 				}
 
