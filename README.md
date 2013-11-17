@@ -446,6 +446,18 @@ Uncomment those you want to test.
 
 ; assemble expected value after multiple DAT
 ;.const_D	DAT 	0x3000,
+
+; data table
+:data_table
+	;DAT
+	DAT 0x1000
+	;DAT
+	DAT 0x2000
+	;DAT
+	DAT 0x3000
+	;DAT
+	;DAT 0x1000,
+	;DAT
 ```
 
 ##### asm_test_data.asm
