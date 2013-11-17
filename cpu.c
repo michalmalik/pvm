@@ -11,7 +11,7 @@
 // nanoseconds
 #define CPU_TICK                1000           
 
-#define STACK_START             0x7FFF
+#define STACK_START             0x8000
 #define STACK_LIMIT             0x2000
 
 typedef unsigned char u8;
@@ -82,8 +82,8 @@ static void debug(struct cpu *p) {
 
         printf("Stack:\n");
         size_t i;
-        for(i = 0; i < 0x20; i++) {
-                printf("%04X ", p->mem[(STACK_START-0x1F)+i]);
+        for(i = 0; i < 0x40; i++) {
+                printf("%04X ", p->mem[(STACK_START-0x40)+i]);
                 if((i+1)%16==0) printf("\n");
         }
 }
@@ -162,8 +162,7 @@ static int word(u16 op) {
 }
 
 static void step(struct cpu *p) {
-        char out[128];
-        zero(out);
+        char out[128] = {0};
         disassemble(p->mem, p->ip, out);
         printf("%s", out);
 
@@ -263,31 +262,28 @@ static void step(struct cpu *p) {
                 // JTR
                 case 0x13: {
                         // push IP on stack
-                        p->mem[p->sp--] = p->ip;
+                        p->mem[--p->sp] = p->ip;
                         p->cycles++;
                         // jump
                         p->ip = *d; 
                 } break;
                 // PUSH
                 case 0x14: {
-                        p->mem[p->sp--] = *d;
+                        p->mem[--p->sp] = *d;
                 } break;
                 // POP
                 case 0x15: {
-                        *d = p->mem[++p->sp];
-                        p->mem[p->sp] = 0;
+                        *d = p->mem[p->sp++];
                 } break;
                 // RET
                 case 0x16: {
                         // pop IP from stack
-                        p->ip = p->mem[++p->sp];
-                        p->mem[p->sp] = 0;
+                        p->ip = p->mem[p->sp++];
                 } break;
                 // RETI
                 case 0x17: {
                         // pop IP from stack
-                        p->ip = p->mem[++p->sp];
-                        p->mem[p->sp] = 0;
+                        p->ip = p->mem[p->sp++];
                         // set IA to 0, means we are returning
                         // from interrupt routine
                         p->ia = 0;
@@ -305,7 +301,7 @@ static void step(struct cpu *p) {
                         // set A to the message
                         p->r[0] = *d;
                         // push return IP to stack
-                        p->mem[p->sp--] = p->ip;
+                        p->mem[--p->sp] = p->ip;
                         // jump to IA
                         p->ip = p->ia;
                 } break;
@@ -339,7 +335,7 @@ int main(int argc, char **argv) {
         int run = 0, c = 0;
         int w1 = 0, w2 = 0;
         do {
-                if(p.sp < STACK_START-STACK_LIMIT) {
+                if(p.sp < STACK_START-STACK_LIMIT-1) {
                         error("STACK_LIMIT(%04X) reached", STACK_LIMIT);
                 }
 
