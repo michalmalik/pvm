@@ -77,10 +77,10 @@ STO B,[A]
 #### Example no. 2
 ```
 STO A,0
-STO C,10
+STO J,10
 :loop
 	ADD A,1
-	IFN A,C
+	IFN A,J
 		JMP loop
 ```
 
@@ -96,13 +96,13 @@ JMP start
 
 :start
     STO A,0
-    STO C,4
+    STO J,4
 
     ; Loop through table
     :loop
         STO [0x1000+A],[table+A]
         ADD A,1
-        IFN A,C
+        IFN A,J
             JMP loop
 ```
 
@@ -113,11 +113,11 @@ JMP start
 .mem_address 	DAT 	0
 
 :write_mem
-	ADD SP,1
+	STO Z,SP
 
-	POP [mem_address] 	; mem_address
-	POP C 			; count
-	POP Y 			; value
+	STO [mem_address],[Z+1]		; addr
+	STO Y,[Z+2]			; value
+	STO J,[Z+3]			; count
 
 	STO A,0
 	:write_mem_loop
@@ -125,15 +125,16 @@ JMP start
 		ADD X,A
 		STO [X],Y
 		ADD A,1
-		IFN A,C
+		IFN A,J
 			JMP write_mem_loop
-	SUB SP,4
+	
+	STO SP,Z
 	RET
 
 :start
 
-PUSH 0xF00D
 PUSH 0x8
+PUSH 0xF00D
 PUSH 0x1000
 JTR write_mem
 ADD SP,3
@@ -149,14 +150,14 @@ JMP start
 
 :start
 
-PUSH 0xF00D		; value
 PUSH 0x8 		; count
+PUSH 0xF00D		; value
 PUSH 0x1000 		; mem_address
 JTR write_mem
 ADD SP,3
 
-PUSH 0xBEAF 		; value
 PUSH 0x8 		; count
+PUSH 0xBEAF 		; value
 PUSH 0x2000 		; mem_address
 JTR write_mem
 ADD SP,3
@@ -164,26 +165,47 @@ ADD SP,3
 
 ##### memory.asm
 ```
-.mem_address 	DAT 	0
+.dst_addr	DAT	0
+.src_addr	DAT	0
 
 :write_mem
-	ADD SP,1
+	STO Z,SP
 
-	POP [mem_address] 	; mem_address
-	POP C 			; count
-	POP Y 			; value
+	STO [dst_addr],[Z+1]	; dst_addr
+	STO Y,[Z+2]		; value
+	STO J,[Z+3]		; count
 
 	STO A,0
-	:write_mem_loop
-		STO X,[mem_address]
+	:loop
+		STO X,[dst_addr]
 		ADD X,A
 		STO [X],Y
 		ADD A,1
-		IFN A,C
-			JMP write_mem_loop
-
-	SUB SP,4
+		IFL A,J
+			JMP loop 
+	STO SP,Z
 	RET
+
+:copy_mem
+	STO Z,SP
+
+	STO [dst_addr],[Z+1]	; dst_addr
+	STO [src_addr],[Z+2]	; src_addr
+	STO J,[Z+3]		; count
+
+	STO A,0
+	:loop_2
+		STO X,[dst_addr]
+		STO Y,[src_addr]
+		ADD X,A
+		ADD Y,A
+		STO [X],[Y]
+		ADD A,1
+		IFL A,J
+			JMP loop_2
+	STO SP,Z
+	RET
+
 ```
 
 #### Example no. 6
@@ -199,8 +221,8 @@ JMP start
 
 :start
 
+PUSH 0x10
 PUSH 0xF00D
-PUSH 0x8
 PUSH [mem_1]
 JTR write_mem
 ADD SP,3
@@ -214,46 +236,47 @@ ADD SP,3
 
 ##### memory.asm
 ```
-.dst_addr	DAT 	0
-.src_addr 	DAT 	0
+.dst_addr	DAT	0
+.src_addr	DAT	0
 
 :write_mem
-	ADD SP,1
+	STO Z,SP
 
-	POP [dst_addr]		; mem_address
-	POP C 			; count
-	POP Y 			; value
+	STO [dst_addr],[Z+1]	; dst_addr
+	STO Y,[Z+2]		; value
+	STO J,[Z+3]		; count
 
 	STO A,0
-	:write_mem_loop
+	:loop
 		STO X,[dst_addr]
 		ADD X,A
 		STO [X],Y
 		ADD A,1
-		IFN A,C
-			JMP write_mem_loop
-
-	SUB SP,4
+		IFL A,J
+			JMP loop 
+	STO SP,Z
 	RET
 
 :copy_mem
-	ADD SP,1
+	STO Z,SP
 
-	POP [dst_addr]
-	POP [src_addr] 
-	POP C 
+	STO [dst_addr],[Z+1]	; dst_addr
+	STO [src_addr],[Z+2]	; src_addr
+	STO J,[Z+3]		; count
 
-	:copy_mem_loop
+	STO A,0
+	:loop_2
 		STO X,[dst_addr]
-		STO Y,[src_addr] 
+		STO Y,[src_addr]
 		ADD X,A
 		ADD Y,A
 		STO [X],[Y]
 		ADD A,1
-		IFN A,C
-			JMP copy_mem_loop
-	SUB SP,4
+		IFL A,J
+			JMP loop_2
+	STO SP,Z
 	RET
+
 ```
 
 #### Example no. 7
@@ -266,23 +289,28 @@ JMP start
 
 #define ST_PERSON_MICHAL	0x1000
 
+; +3 PERSON_HEIGHT
+; +2 PERSON_AGE
+; +1 PERSON_ADDR
+:create_person
+	STO Z,SP
+
+	STO Y,[Z+1]		; PERSON_ADDR
+	STO B,[Z+2]		; PERSON_AGE
+	STO C,[Z+3]		; PERSON_HEIGHT
+
+	STO [Y+PERSON_AGE],B
+	STO [Y+PERSON_HEIGHT],C
+
+	STO SP,Z
+	RET
+
 :start
 
-STO A,ST_PERSON_MICHAL
-STO [A+PERSON_AGE],0x12
-STO [A+PERSON_HEIGHT],0xB4
-```
-
-##### hexdump -C
-```
-00000000  c0 12 00 02 06 00 10 00  86 00 00 00 00 12 86 00  |................|
-00000010  00 01 00 b4 00 00 00 00  00 00 00 00 00 00 00 00  |................|
-00000020  00 00 00 00 00 00 00 00  00 00 00 00 00 00 00 00  |................|
-*
-00002000  00 12 00 b4 00 00 00 00  00 00 00 00 00 00 00 00  |................|
-00002010  00 00 00 00 00 00 00 00  00 00 00 00 00 00 00 00  |................|
-*
-00010000
+PUSH 0xB4		; height
+PUSH 0x12		; age
+PUSH ST_PERSON_MICHAL	; addr
+JTR create_person
 ```
 
 #### Example no. 8
