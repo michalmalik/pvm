@@ -10,6 +10,9 @@
 typedef unsigned char u8;
 typedef unsigned short u16;
 
+void free_defines_list();
+void free_memory();
+
 union _mem {
 	struct {
 		u8 lo;
@@ -18,8 +21,12 @@ union _mem {
 	u16 _w;
 };
 
-static union _mem MEM[0x8000];
-static u16 IP = 0;
+struct file_id {
+	struct file_id *next;
+
+	FILE *fp;
+	unsigned int id;
+};
 
 struct cdefine {
 	struct cdefine *next;
@@ -29,7 +36,8 @@ struct cdefine {
 };
 
 struct file_asm {
-	FILE *fp;
+	struct file_id id;
+
 	char i_fn[64];
 	char tokenstr[64];
 	char linebuffer[256];
@@ -67,7 +75,11 @@ struct fix {
 	u16 const_val;
 };
 
+static union _mem MEM[0x8000] = {0};
+static u16 IP = 0;
+
 static struct file_asm *cf = NULL;
+static struct file_id *files = NULL;
 
 static struct symbol *symbols = NULL;
 static struct fix *fixes = NULL;
@@ -109,6 +121,9 @@ void die(const char *format, ...) {
 	vsprintf(buf, format, va);
 
 	puts(buf);
+
+	free_defines_list();
+	free_memory();
 	exit(1);
 }
 
@@ -124,37 +139,44 @@ void error(const char *format, ...) {
 	strcat(buf_1, buf_2);	
 
 	puts(buf_1);
+
+	free_defines_list();
+	free_memory();
 	exit(1);
 }
 
+void add_file(const int id, FILE *fp) {
+	struct file_id *fi = (struct file_id *)malloc(sizeof(struct file_id));
+	memset(fi, 0, sizeof(struct file_id));
+
+	fi->id = id;
+	fi->fp = fp;
+
+	fi->next = files;
+	files = fi;
+}
+
 void init_asm(const char *i_fn) {
-	struct file_asm fs;
+	struct file_asm fs = {0};
 	size_t i;
 
-	fs.fp = NULL;
-	zero(fs.i_fn);
-	zero(fs.tokenstr);
-	zero(fs.linebuffer);
-	zero(fs.line);
-
-	fs.linenumber = 0;
-
 	fs.lineptr = fs.linebuffer;
-	fs.token = 0;
-	fs.tokennum = 0;
-
 	fs.defines = NULL;
-
 	strcpy(fs.i_fn, i_fn);
 
-	if((fs.fp = fopen(i_fn, "r")) == NULL) {
-		if(cf->fp) {
+	if((fs.id.fp = fopen(i_fn, "r")) == NULL) {
+		if(cf->id.fp) {
 			die("%s: error: line %d, file \"%s\" does not exist \n\n%s", cf->i_fn, 
 				cf->linenumber, fs.i_fn, cf->line);
 		} else {
 			die("error: file \"%s\" does not exist", fs.i_fn);
 		}
 	}
+
+	if(!files) fs.id.id = 0;
+	else fs.id.id = files->id+1;
+
+	add_file(fs.id.id, fs.id.fp);
 
 	*cf = fs;
 }
@@ -205,7 +227,6 @@ void add_define(const char *name, u16 value) {
 		if(!strcmp(d->name, name))
 			error("define \"%s\" already defined", name);
 	}
-
 	d = (struct cdefine *)malloc(sizeof(struct cdefine));
 
 	zero(d->name);
@@ -217,7 +238,7 @@ void add_define(const char *name, u16 value) {
 	cf->defines = d;
 }
 
-struct symbol *get_symbol(const char *name) {
+struct symbol *find_symbol(const char *name) {
 	struct symbol *s = NULL;
 	for(s = symbols; s; s = s->next) {
 		if(!strcmp(s->name, name)) return s;
@@ -225,7 +246,7 @@ struct symbol *get_symbol(const char *name) {
 	return NULL;
 }
 
-struct cdefine *get_define(const char *name) {
+struct cdefine *find_define(const char *name) {
 	struct cdefine *d = NULL;
 	for(d = cf->defines; d; d = d->next) {
 		if(!strcmp(d->name, name)) return d;
@@ -249,7 +270,7 @@ void fix_symbols() {
 	struct symbol *s = NULL;
 	struct fix *f = NULL;
 	for(f = fixes; f; f = f->next) {
-		s = get_symbol(f->name);
+		s = find_symbol(f->name);
 		if(!s) {
 			die("%s: error: line %d, symbol \"%s\" is not defined\n\n%s", f->fn, f->linenumber,
 				 f->name, f->linebuffer);
@@ -268,24 +289,14 @@ void print_symbols() {
 	}
 }
 
-void free_defines_list() {
-	struct cdefine *head = cf->defines, *tmp = NULL;
-	while(head) {
-		tmp = head;
-		head = head->next;
-		free(tmp);
-	}
-	free(head);
-}
-
 int next_token() {
 	char c = 0, *x = 0;
 	size_t i;
 	int newline = 0;
 next_line:
 	if(!*cf->lineptr) {
-		if(feof(cf->fp)) return tEOF;
-		if(fgets(cf->linebuffer, 256, cf->fp) == 0) return tEOF;
+		if(feof(cf->id.fp)) return tEOF;
+		if(fgets(cf->linebuffer, 256, cf->id.fp) == 0) return tEOF;
 		cf->lineptr = cf->linebuffer;
 		cf->linenumber++;
 		newline = 1;
@@ -382,8 +393,8 @@ void expect(int t) {
 
 void assemble_label(const char *name, int *v) {
 	// Symbols have higher priority
-	struct symbol *s = get_symbol(name);
-	struct cdefine *d = get_define(name);
+	struct symbol *s = find_symbol(name);
+	struct cdefine *d = find_define(name);
 
 	if(*v == -1) {
 		if(s) *v = s->addr;
@@ -595,7 +606,7 @@ int assemble() {
 	int v1 = -1, v2 = -1;
 	int t;
 	u16 b = 0;
-	struct file_asm tf;
+	struct file_asm tf = {0};
 	size_t i;
 
 	for(;;) {
@@ -736,7 +747,6 @@ again:
 		}
 	}
 done:
-	fclose(cf->fp);
 	free_defines_list();
 	return 1;
 }
@@ -756,24 +766,57 @@ void output(const char *fn) {
 	fclose(fp);
 }
 
-void free_symbol_list() {
-	struct symbol *head = symbols, *tmp = NULL;
+void free_defines_list() {
+	struct cdefine *head = cf->defines, *tmp = NULL;
 	while(head) {
 		tmp = head;
 		head = head->next;
 		free(tmp);
 	}
 	free(head);
+	cf->defines = NULL;
 }
 
-void free_fix_list() {
-	struct fix *head = fixes, *tmp = NULL;
-	while(head) {
-		tmp = head;
-		head = head->next;
-		free(tmp);
+void free_memory() {
+	struct symbol *shead = symbols, *stmp = NULL;
+	struct fix *fhead = fixes, *ftmp = NULL;
+	struct file_id *fihead = files, *fitmp = NULL;
+
+	// Free symbol linked list
+	while(shead) {
+		stmp = shead;
+		shead = shead->next;
+		free(stmp); 
 	}
-	free(head);
+	free(shead);
+	symbols = NULL;
+
+	// Free fix linked list
+	while(fhead) {
+		ftmp = fhead;
+		fhead = fhead->next;
+		free(ftmp);
+	}
+	free(fhead);
+	fixes = NULL;
+
+	// Free all files
+	for(fitmp = files; fitmp; fitmp = fitmp->next) {
+		fclose(fitmp->fp);
+	}
+	fitmp = NULL;
+	
+	while(fihead) {
+		fitmp = fihead;
+		fihead = fihead->next;
+		free(fitmp);
+	}
+	free(fihead);
+	fixes = NULL;
+
+	// Free current file structure
+	free(cf);
+	cf = NULL;
 }
 
 int main(int argc, char **argv) {
@@ -784,22 +827,21 @@ int main(int argc, char **argv) {
 		die("usage: %s <source_file> <program>", argv[0]);
 	}
 
-	zero(MEM);
-
 	strcpy(i_fn, argv[1]);
 	strcpy(o_fn, argv[2]);
 
 	// Init file_asm structure for the main file
 	cf = (struct file_asm *)malloc(sizeof(struct file_asm));
-	init_asm(i_fn); 
+	memset(cf, 0, sizeof(struct file_asm));
+
+	init_asm(i_fn);
+
 	assemble();
 	fix_symbols();
 
 	print_symbols();
 	output(o_fn);
 
-	free_symbol_list();
-	free_fix_list();
-	free(cf);
+	free_memory();
 	return 0;
 }
