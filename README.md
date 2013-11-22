@@ -437,14 +437,18 @@ Uncomment those you want to test.
 ;#include "ff.asm"
 
 ; add_symbol multiple definitions test
-.const_A	DAT	0x1000
+;.const_A	DAT	0x1000
 ;.const_A	DAT 	0x2000
 
 ; redaclaration of variables in a different file
 ;#include "asm_test_data.asm"
 
+; redeclaration of variables in an included file
+; from an already included file
+;#include "asm_test_data_2.asm"
+
 ; add_define multiple definitions test
-#define CONST_B		0x1000
+;#define CONST_B		0x1000
 ;#define CONST_B		0x2000
 
 ; fix_symbols symbol not defined test
@@ -479,11 +483,11 @@ Uncomment those you want to test.
 ; data table
 :data_table
 	;DAT
-	DAT 0x1000
+	;DAT 0x1000
 	;DAT
-	DAT 0x2000
+	;DAT 0x2000
 	;DAT
-	DAT 0x3000
+	;DAT 0x3000
 	;DAT
 	;DAT 0x1000,
 	;DAT
@@ -492,6 +496,18 @@ Uncomment those you want to test.
 ##### asm_test_data.asm
 ```
 .const_A	DAT	0x1000
+```
+
+##### asm_test_data_2.asm
+```
+.const_F	DAT	0x1000
+
+#include "asm_test_data_3.asm"
+```
+
+##### asm_test_data_3.asm
+```
+.const_A	DAT	0x2000
 ```
 
 #### Macros
