@@ -510,7 +510,7 @@ Uncomment those you want to test.
 .const_A	DAT	0x2000
 ```
 
-#### Macros
+#### Preprocessor
 
 ##### define
 
@@ -528,7 +528,7 @@ STO [MEM_ADDR],0xF00D
 PUSH [MEM_ADDR]
 ```
 
-##### include
+##### include 
 
 ###### data.asm
 ```
