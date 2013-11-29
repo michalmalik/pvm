@@ -25,19 +25,6 @@ enum _instructions {
         IAR, INT, HWI, HWQ, HWN
 };
 
-// union is not needed, we don't 
-// need to access the mid and hid separately
-struct device {
-        struct device *next;
-
-        u16 index; // hardware index
-        u16 mid; // manufacter id
-        u16 hid; // hardware id
-
-        unsigned int (*_init)();
-        void (*_handle_interrupt)(u16);
-};
-
 struct cpu {
         u16 r[8];
         u16 sp, ip, ia;
@@ -47,6 +34,19 @@ struct cpu {
 
         // Linked list of devices
         struct device *devices;
+};
+
+// union is not needed, we don't 
+// need to access the mid and hid separately
+struct device {
+        struct device *next;
+
+        u16 index; // hardware index
+        u16 mid; // manufacter id
+        u16 hid; // hardware id
+
+        unsigned int (*_init)(struct cpu *);
+        void (*_handle_interrupt)(u16);
 };
 
 #endif
