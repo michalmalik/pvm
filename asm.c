@@ -36,7 +36,7 @@ struct cdefine {
 };
 
 struct file_asm {
-	struct file_id id;
+	struct file_id fid;
 
 	char i_fn[64];
 	char tokenstr[64];
@@ -91,7 +91,8 @@ static const char *tn[] = {
 	"ADD", "SUB", "MUL", "DIV", "MOD",
 	"NOT", "AND", "OR", "XOR", "SHL", "SHR",
 	"IFE", "IFN", "IFG", "IFL", "IFGE", "IFLE", "JMP", "JTR",
-	"PUSH", "POP", "RET", "RETI", "IAR", "INT", 
+	"PUSH", "POP", "RET", "RETI", "IAR", "INT",
+	"HWI", "HWQ", "HWN",
 	"DAT", 
 	".", "#", ":", ",", "[", "]", "+",
 	"(NUMBER)", "(STRING)", "(QUOTED STRING)", "(EOL)", "(EOF)"
@@ -105,6 +106,7 @@ enum {
 	tNOT, tAND, tOR, tXOR, tSHL, tSHR,
 	tIFE, tIFN, tIFG, tIFL, tIFGE, tIFLE, tJMP, tJTR,
 	tPUSH, tPOP, tRET, tRETI, tIAR, tINT,
+	tHWI, tHWQ, tHWN,
 	tDAT,
 	tDOT, tHASH, tCOLON, tCOMMA, tBS, tBE, tPLUS,
 	tNUM, tSTR, tQSTR, tEOL, tEOF
@@ -131,10 +133,10 @@ void error(const char *format, ...) {
 	char buf_1[512] = {0};
 	char buf_2[256] = {0};
 	va_list va;
-
+	
 	va_start(va, format);
 
-	sprintf(buf_1, "%s: line %d, error: ", cf->i_fn, cf->linenumber);
+	sprintf(buf_1, "%s:%d, error: ", cf->i_fn, cf->linenumber);
 	vsprintf(buf_2, format, va);
 	strcat(buf_1, buf_2);	
 
@@ -164,19 +166,19 @@ void init_asm(const char *i_fn) {
 	fs.defines = NULL;
 	strcpy(fs.i_fn, i_fn);
 
-	if((fs.id.fp = fopen(i_fn, "r")) == NULL) {
-		if(cf->id.fp) {
-			die("%s: error: line %d, file \"%s\" does not exist \n\n%s", cf->i_fn, 
+	if((fs.fid.fp = fopen(i_fn, "r")) == NULL) {
+		if(cf->fid.fp) {
+			die("%s:%d, error: file \"%s\" does not exist \n\n%s", cf->i_fn, 
 				cf->linenumber, fs.i_fn, cf->line);
 		} else {
 			die("error: file \"%s\" does not exist", fs.i_fn);
 		}
 	}
 
-	if(!files) fs.id.id = 0;
-	else fs.id.id = files->id+1;
+	if(!files) fs.fid.id = 0;
+	else fs.fid.id = files->id+1;
 
-	add_file(fs.id.id, fs.id.fp);
+	add_file(fs.fid.id, fs.fid.fp);
 
 	*cf = fs;
 }
@@ -272,7 +274,7 @@ void fix_symbols() {
 	for(f = fixes; f; f = f->next) {
 		s = find_symbol(f->name);
 		if(!s) {
-			die("%s: error: line %d, symbol \"%s\" is not defined\n\n%s", f->fn, f->linenumber,
+			die("%s:%d, error: symbol \"%s\" is not defined\n\n%s", f->fn, f->linenumber,
 				 f->name, f->linebuffer);
 		}
 		// [symbol + const_val]
@@ -284,6 +286,7 @@ void fix_symbols() {
 
 void print_symbols() {
 	struct symbol *s = NULL;
+	struct cdefine *d = NULL;
 	for(s = symbols; s; s = s->next) {
 		printf("%s %s 0x%04X 0x%04X\n", s->f.i_fn, s->name, s->addr, s->value);
 	}
@@ -295,8 +298,8 @@ int next_token() {
 	int newline = 0;
 next_line:
 	if(!*cf->lineptr) {
-		if(feof(cf->id.fp)) return tEOF;
-		if(fgets(cf->linebuffer, 256, cf->id.fp) == 0) return tEOF;
+		if(feof(cf->fid.fp)) return tEOF;
+		if(fgets(cf->linebuffer, 256, cf->fid.fp) == 0) return tEOF;
 		cf->lineptr = cf->linebuffer;
 		cf->linenumber++;
 		newline = 1;
@@ -595,6 +598,9 @@ void assemble_i(int inst, u16 d, u16 s, int v1, int v2) {
 		case tRETI: o = 0x17; break;
 		case tIAR: o = 0x18; break;
 		case tINT: o = 0x19; break;
+		case tHWI: o = 0x1A; break;
+		case tHWQ: o = 0x1B; break;
+		case tHWN: o = 0x1C; break;
 	}
 	MEM[IP++]._w = (u16)(o|(s<<6)|(d<<11));
 	if(v1 != -1) MEM[IP++]._w = v1&0xFFFF;		
@@ -702,7 +708,8 @@ again:
 			}
 			case tNOT:
 			case tJMP: case tJTR: case tPUSH: case tPOP: 
-			case tIAR: case tINT: {
+			case tIAR: case tINT: 
+			case tHWI: case tHWQ: case tHWN: {
 				assemble_o(&d, &v1);
 				assemble_i(t, d, 0, v1, -1);
 				break;	
@@ -767,6 +774,7 @@ void output(const char *fn) {
 }
 
 void free_defines_list() {
+	if(!cf) return;
 	struct cdefine *head = cf->defines, *tmp = NULL;
 	while(head) {
 		tmp = head;
