@@ -2,7 +2,7 @@
 * **16-bit** CPU, 16-bit words
 * experimental **1 Mhz** clock 
 * **0x8000 words**
-* **8 16-bit general purpose registers** (A,B,C,D,X,Y,Z,J), **stack pointer** (SP), **instruction pointer** (IP), **interrupt address** (IA)
+* **8 16-bit general purpose registers** (A,B,C,D,X,Y,Z,J), **stack pointer** (SP), **instruction pointer** (IP), **interrupt address** register (IA)
 * **OF** (overflow) flag
 * **0x2000 words** global stack size, start `0x7FFF`, goes down
 * instruction takes maximum **6 bytes** 
@@ -46,11 +46,11 @@
 | 0x0A   | SHL A,B          | A = A << B                          		     | 1-3     |
 | 0x0B   | SHR A,B          | A = A >> B                          		     | 1-3     |
 | 0x0C   | IFE A,B          | execute next instruction if A==B    		     | 1-3     |
-| 0x0D   | IFN A,B          | if A!=B            		  		     | 1-3     |
-| 0x0E   | IFG A,B          | if A>B            		  		     | 1-3     |
-| 0x0F   | IFL A,B          | if A<B           		   	  		     | 1-3     |
-| 0x10   | IFGE A,B         | if A>=B                             		     | 1-3     |
-| 0x11   | IFLE A,B         | if A<=B                             		     | 1-3     |
+| 0x0D   | IFN A,B          | if A != B            		  		     | 1-3     |
+| 0x0E   | IFG A,B          | if A > B            		  		     | 1-3     |
+| 0x0F   | IFL A,B          | if A < B           		   	  	     | 1-3     |
+| 0x10   | IFGE A,B         | if A >= B                             		     | 1-3     |
+| 0x11   | IFLE A,B         | if A <= B                             		     | 1-3     |
 | 0x12   | JMP label        | jump to label            		  		     | 2       |
 | 0x13   | JTR label        | push IP of next instruction on stack, jump to label    | 3       |
 | 0x14   | PUSH A           | push A on stack, SP--	  		     	     | 1-2     |
