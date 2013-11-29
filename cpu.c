@@ -4,68 +4,22 @@
 #include <stdarg.h>
 #include <time.h>
 
-#define zero(a)         (memset((a),0,sizeof((a))))
-#define count(a)        (sizeof((a))/sizeof((a)[0]))
-
-#define OPO(op)         (op&0x3f)
-#define OPD(op)         (op>>11)
-#define OPS(op)         ((op>>6)&0x1f)
-#define USINGNW(w)      ((w >= 0x10 && w <= 0x19))
+#include "cpu.h"
 
 // 1 Mhz in nanoseconds
 #define CPU_TICK                1000           
 #define STACK_START             0x8000
 #define STACK_LIMIT             0x2000
 
-typedef unsigned char u8;
-typedef unsigned short u16;
-
 extern void disassemble(u16 *mem, u16 ip, char *out);
 
 // Load init functions for devices
 // Init function always returns the device id
-extern unsigned int floppy_init();
+extern unsigned int floppy_init(struct cpu *p);
 extern void floppy_handle_interrupt(u16 hwi);
 
-extern unsigned int monitor_init();
+extern unsigned int monitor_init(struct cpu *p);
 extern void monitor_handle_interrupt(u16 hwi);
-
-enum _registers {
-        rA, rB, rC, rD, rX, rY, rZ, rJ
-};
-
-enum _instructions {
-        STO,
-        ADD, SUB, MUL, DIV, MOD,
-        NOT, AND, OR, XOR, SHL, SHR,
-        IFE, IFN, IFG, IFL, IFGE, IFLE,
-        JMP, JTR, PUSH, POP, RET, RETI,
-        IAR, INT, HWI, HWQ, HWN
-};
-
-// union is not needed, we don't 
-// need to access the mid and hid separately
-struct device {
-        struct device *next;
-
-        u16 index; // hardware index
-        u16 mid; // manufacter id
-        u16 hid; // hardware id
-
-        unsigned int (*_init)();
-        void (*_handle_interrupt)(u16);
-};
-
-struct cpu {
-        u16 r[8];
-        u16 sp, ip, ia;
-        u8 of:1;
-        u16 mem[0x8000];
-        unsigned int cycles;
-
-        // Linked list of devices
-        struct device *devices;
-};
 
 static void error(const char *format, ...) {
         char buf_1[512] = {0};
@@ -85,7 +39,7 @@ static void error(const char *format, ...) {
 // id contains mid and hid
 // _init is the init function for the device
 // _handle_interrupt is the routine that handles all hardware interrupts
-static unsigned int add_device(struct cpu *p, unsigned int (*_init)(), void (*_handle_interrupt)(u16)){
+static unsigned int add_device(struct cpu *p, unsigned int (*_init)(struct cpu *), void (*_handle_interrupt)(u16)){
         struct device *dev = NULL;
         unsigned int id = 0;
 
@@ -99,7 +53,7 @@ static unsigned int add_device(struct cpu *p, unsigned int (*_init)(), void (*_h
 
         // Init the device
         // _init function returns the device id
-        id = dev->_init();
+        id = dev->_init(p);
         dev->mid = (id>>16)&0xffff;
         dev->hid = id&0xffff;
 
@@ -387,7 +341,7 @@ static void step(struct cpu *p) {
                         p->ip = p->mem[p->sp++];
                         // set IA to 0, means we are returning
                         // from interrupt routine
-                        p->ia = 0;
+                        // p->ia = 0;
                 } break;
                 // IAR 
                 case IAR: {

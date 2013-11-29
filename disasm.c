@@ -2,11 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define OPO(op)         (op&0x3f)
-#define OPD(op)         (op>>11)
-#define OPS(op)         ((op>>6)&0x1f)
-
-typedef unsigned short u16;
+#include "cpu.h"
 
 static const char *opc[] = {
 	"STO", "ADD", "SUB", "MUL", "DIV", "MOD",
@@ -21,7 +17,7 @@ static const char *regs = "ABCDXYZJ";
 static void dis_opr(u16 *mem, u16 b, u16 ip, char *out) {
 	u16 w = 0;
 
-	if(b >= 0x10 && b <= 0x19) {
+	if(USINGNW(b)) {
 		w = mem[ip+1];
 	}
 
@@ -54,7 +50,7 @@ void disassemble(u16 *mem, u16 ip, char *out) {
 
 	u16 ins = mem[ip];
 	u16 op = OPO(ins);
-	u16 ins_num = sizeof(opc)/sizeof(opc[0]);
+	u16 ins_num = count(opc);
 
 	sprintf(out+strlen(out), "%04X\t", ins);
 
@@ -65,10 +61,10 @@ void disassemble(u16 *mem, u16 ip, char *out) {
 	}
 
 	// NOT, JMP, JTR, PUSH, POP, IAR, INT, HWI, HWQ, HWN
-	if((op == 6) || (op >= 0x12 && op <= 0x15) || (op >= 0x18 && op <= 0x1C)) {
+	if((op == NOT) || (op >= JMP && op <= POP) || (op >= IAR && op <= HWN)) {
 		dis_opr(mem, OPD(ins), ip, out);
 	// RET, RETI
-	} else if(op == 0x16 || op == 0x17) {
+	} else if(op == RET || op == RETI) {
 
 	// DAT
 	} else if(op > ins_num) {

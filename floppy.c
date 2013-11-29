@@ -2,12 +2,15 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "cpu.h"
+
 #define DEVICE_ID	0x32ba236e
 
-typedef unsigned char u8;
-typedef unsigned short u16;
+static struct cpu *proc = NULL;
 
-unsigned int floppy_init() {
+unsigned int floppy_init(struct cpu *p) {
+	proc = p;
+
 	printf("Initiating floppy, id 0x%08X\n", DEVICE_ID);
 
 	return DEVICE_ID;

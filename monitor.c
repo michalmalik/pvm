@@ -2,12 +2,15 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "cpu.h"
+
 #define DEVICE_ID	0xff21beba
 
-typedef unsigned char u8;
-typedef unsigned short u16;
+static struct cpu *proc = NULL;
 
-unsigned int monitor_init() {
+unsigned int monitor_init(struct cpu *p) {
+	proc = p;
+
 	printf("Initiating monitor, id 0x%08X\n", DEVICE_ID);
 
 	return DEVICE_ID;
