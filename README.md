@@ -56,7 +56,7 @@
 | 0x14   | PUSH A           | push A on stack, SP--	  		     	     | 1-2     |
 | 0x15   | POP A            | pops value from stack to A, SP++         		     | 1-2     |
 | 0x16   | RET              | pops value from stack to IP                 	     | 1       |
-| 0x17   | RETI             | sets IA to 0, pops value from stack to IP              | 1       |
+| 0x17   | RETI             | pops value from stack to IP              		     | 1       |
 
 #### Interrupt instructions
 ------------------------------------------------------------------------------------------------
