@@ -4,8 +4,8 @@
 #include <ctype.h>
 #include <stdarg.h>
 
-#define zero(a)     memset((a), 0, sizeof((a)))
-#define count(a)    sizeof((a))/sizeof((a)[0])
+#define zero(a)		memset((a), 0, sizeof((a)))
+#define count(a)	sizeof((a))/sizeof((a)[0])
 
 typedef unsigned char u8;
 typedef unsigned short u16;
@@ -766,7 +766,7 @@ static void output(const char *fn) {
 		die("error: couldn't open/write to \"%s\"", fn);
 	}
 
-	for(i = 0; i < count(MEM); i++) {
+	for(i = 0; i < 0x8000; i++) {
 		fprintf(fp, "%c%c", MEM[i]._b.hi, MEM[i]._b.lo);
 	}
 
