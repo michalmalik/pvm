@@ -23,10 +23,11 @@ typedef unsigned short u16;
 extern void disassemble(u16 *mem, u16 ip, char *out);
 
 // Load init functions for devices
-extern void floppy_init();
+// Init function always returns the device id
+extern unsigned int floppy_init();
 extern void floppy_handle_interrupt(u16 hwi);
 
-extern void monitor_init();
+extern unsigned int monitor_init();
 extern void monitor_handle_interrupt(u16 hwi);
 
 enum _registers {
@@ -51,7 +52,7 @@ struct device {
         u16 mid; // manufacter id
         u16 hid; // hardware id
 
-        void (*_init)();
+        unsigned int (*_init)();
         void (*_handle_interrupt)(u16);
 };
 
@@ -66,7 +67,7 @@ struct cpu {
         struct device *devices;
 };
 
-void error(const char *format, ...) {
+static void error(const char *format, ...) {
         char buf_1[512] = {0};
         char buf_2[256] = {0};
         va_list va;
@@ -84,28 +85,23 @@ void error(const char *format, ...) {
 // id contains mid and hid
 // _init is the init function for the device
 // _handle_interrupt is the routine that handles all hardware interrupts
-static unsigned int add_device(struct cpu *p, unsigned int id, void (*_init)(), void (*_handle_interrupt)(u16)){
+static unsigned int add_device(struct cpu *p, unsigned int (*_init)(), void (*_handle_interrupt)(u16)){
         struct device *dev = NULL;
-        u16 mid = 0, hid = 0;
-
-        mid = (id>>16)&0xffff;
-        hid = id&0xffff;
-
-        for(dev = p->devices; dev; dev = dev->next) {
-                if(mid == dev->mid && hid == dev->hid) {
-                        return 0;
-                }
-        }
+        unsigned int id = 0;
 
         dev = (struct device *)malloc(sizeof(struct device));
         memset(dev, 0, sizeof(struct device));
 
         if(!p->devices) dev->index = 0;
         else dev->index = p->devices->index+1;
-        dev->mid = mid;
-        dev->hid = hid;
         dev->_init = _init;
         dev->_handle_interrupt = _handle_interrupt;
+
+        // Init the device
+        // _init function returns the device id
+        id = dev->_init();
+        dev->mid = (id>>16)&0xffff;
+        dev->hid = id&0xffff;
 
         dev->next = p->devices;
         p->devices = dev;
@@ -141,6 +137,7 @@ static void free_devices(struct cpu *p) {
                 free(tmp);
         }
         free(head);
+        head = NULL;
 }
 
 static void memory_dmp(struct cpu *p, const char *fn) {
@@ -198,6 +195,8 @@ static void load(struct cpu *p, const char *fn) {
         }
 
         fclose(fp);
+
+        p->sp = STACK_START;
 }
 
 static u16 *getopr(struct cpu *p, u8 b, u16 *w) {
@@ -394,7 +393,8 @@ static void step(struct cpu *p) {
                 case IAR: {
                         // set IA to a value
                         // means we are expecting an interrupt routine
-                        // to be entered
+                        // to be entered or a hardware interrupt to
+                        // be triggered
                         p->ia = *d;
 
                 } break;
@@ -420,14 +420,16 @@ static void step(struct cpu *p) {
                 } break;
                 // HWQ
                 case HWQ: {
-                          struct device *dev = find_device(p, *d);
-                          if(dev) {
+                        // If the device doesn't exist
+                        // 
+                        struct device *dev = find_device(p, *d);
+                        if(dev) {
                                 p->r[rA] = dev->mid;
                                 p->r[rB] = dev->hid;
-                          } else {
+                        } else {
                                 p->r[rA] = 0;
                                 p->r[rB] = 0;
-                          }
+                        }
                 } break;
                 // HWN
                 case HWN: {
@@ -454,7 +456,7 @@ int main(int argc, char **argv) {
         strcpy(i_fn, argv[1]);
         strcpy(o_fn, argv[2]);
 
-        // Init cpu and its devices
+        // Init cpu and load the program
         load(&p, i_fn);
         
         // Add floppy
@@ -462,18 +464,14 @@ int main(int argc, char **argv) {
         // HID: 0x236E
         // _init = floppy_init()
         // _handle_interrupt = floppy_handle_interrupt(u16)
-
-        // TODO: floppy_init() will set MID and HID etc.
-        add_device(&p, 0x32ba236e, floppy_init, floppy_handle_interrupt);
+        add_device(&p, floppy_init, floppy_handle_interrupt);
 
         // Add monitor
         // MID: 0xFF21
         // HID: 0xBEBA
         // _init = monitor_init()
         // _handle_interrupt = monitor_handle_interrupt()
-        add_device(&p, 0xff21beba, monitor_init, monitor_handle_interrupt);
-
-        p.sp = STACK_START;
+        add_device(&p, monitor_init, monitor_handle_interrupt);
 
         int run = 0, c = 0;
         unsigned int w1 = 0, w2 = 0;
