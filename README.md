@@ -74,14 +74,14 @@ Devices are identified and manipulated by their hardware index.
 The 32-bit version of the ID contains manufacter id (high 16 bits) and hardware
 id (low 16 bits).
 
-0x**32BA**``236E``
+``0x32ba236e``
 
-0x32BA being the manufacter id and 0x236E the hardware id.
+**0x32ba** being the *manufacter* id and **0x236e** the *hardware id*.
 
-Known devices for PCPU:
+##### Known devices for PCPU:
 
-Floppy disk, 1.44MB: **0x32BA236E**
-Monitor: *0xFF21BEBA*
+* Floppy disk, 1.44MB, **0x32ba236e**
+* Monitor, **0xff21beba**
 
 ### Assembly language
 
