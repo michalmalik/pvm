@@ -2,6 +2,10 @@
 #include <stdlib.h>
 #include <string.h>
 
+#define OPO(op)         (op&0x3f)
+#define OPD(op)         (op>>11)
+#define OPS(op)         ((op>>6)&0x1f)
+
 typedef unsigned short u16;
 
 static const char *opc[] = {
@@ -9,7 +13,7 @@ static const char *opc[] = {
 	"NOT", "AND", "OR", "XOR", "SHL", "SHR",
 	"IFE", "IFN", "IFG", "IFL", "IFGE", "IFLE", 
 	"JMP", "JTR", "PUSH", "POP", "RET", "RETI",
-	"IAR", "INT"
+	"IAR", "INT", "HWI", "HWQ", "HWN"
 };
 
 static const char *regs = "ABCDXYZJ";
@@ -49,7 +53,7 @@ void disassemble(u16 *mem, u16 ip, char *out) {
 	sprintf(out, "%04X:\t", ip);
 
 	u16 ins = mem[ip];
-	u16 op = ins&0x3F;
+	u16 op = OPO(ins);
 	u16 ins_num = sizeof(opc)/sizeof(opc[0]);
 
 	sprintf(out+strlen(out), "%04X\t", ins);
@@ -60,9 +64,9 @@ void disassemble(u16 *mem, u16 ip, char *out) {
 		sprintf(out+strlen(out), "%s ", opc[op]);
 	}
 
-	// NOT, JMP, JTR, PUSH, POP, IAR, INT
-	if((op == 6) || (op >= 0x12 && op <= 0x15) || (op >= 0x18 && op <= 0x19)) {
-		dis_opr(mem, ins>>11, ip, out);
+	// NOT, JMP, JTR, PUSH, POP, IAR, INT, HWI, HWQ, HWN
+	if((op == 6) || (op >= 0x12 && op <= 0x15) || (op >= 0x18 && op <= 0x1C)) {
+		dis_opr(mem, OPD(ins), ip, out);
 	// RET, RETI
 	} else if(op == 0x16 || op == 0x17) {
 
@@ -71,10 +75,10 @@ void disassemble(u16 *mem, u16 ip, char *out) {
 
 	// everything else
 	} else {
-		dis_opr(mem, ins>>11, ip, out);
+		dis_opr(mem, OPD(ins), ip, out);
 		sprintf(out+strlen(out), ",");
-		if(ins>>11 >= 0x10 && ins>>11<=0x19) dis_opr(mem, (ins>>6)&0x1F, ip+1, out);
-		else dis_opr(mem, (ins>>6)&0x1F, ip, out);
+		if(OPD(ins) >= 0x10 && OPD(ins) <= 0x19) dis_opr(mem, OPS(ins), ip+1, out);
+		else dis_opr(mem, OPS(ins), ip, out);
 	}	
 
 	sprintf(out+strlen(out), "\n");
