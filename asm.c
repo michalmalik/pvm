@@ -10,8 +10,8 @@
 typedef unsigned char u8;
 typedef unsigned short u16;
 
-void free_defines_list();
-void free_memory();
+static void free_defines_list();
+static void free_memory();
 
 union _mem {
 	struct {
@@ -98,7 +98,7 @@ static const char *tn[] = {
 	"(NUMBER)", "(STRING)", "(QUOTED STRING)", "(EOL)", "(EOF)"
 };
 
-enum {
+enum _tokens {
 	tA, tB, tC, tD, tX, tY, tZ, tJ,
 	tSP, tIP, tIA,
 	tSTO, 
@@ -114,7 +114,7 @@ enum {
 
 #define LASTTOKEN	tEOF
 
-void die(const char *format, ...) {
+static void die(const char *format, ...) {
 	char buf[512] = {0};
 	va_list va;
 
@@ -129,7 +129,7 @@ void die(const char *format, ...) {
 	exit(1);
 }
 
-void error(const char *format, ...) {
+static void error(const char *format, ...) {
 	char buf_1[512] = {0};
 	char buf_2[256] = {0};
 	va_list va;
@@ -147,7 +147,7 @@ void error(const char *format, ...) {
 	exit(1);
 }
 
-void add_file(const int id, FILE *fp) {
+static void add_file(const int id, FILE *fp) {
 	struct file_id *fi = (struct file_id *)malloc(sizeof(struct file_id));
 	memset(fi, 0, sizeof(struct file_id));
 
@@ -158,7 +158,7 @@ void add_file(const int id, FILE *fp) {
 	files = fi;
 }
 
-void init_asm(const char *i_fn) {
+static void init_asm(const char *i_fn) {
 	struct file_asm fs = {0};
 	size_t i;
 
@@ -183,7 +183,7 @@ void init_asm(const char *i_fn) {
 	*cf = fs;
 }
 
-void add_symbol(const char *name, u16 addr, u16 *value) {
+static void add_symbol(const char *name, u16 addr, u16 *value) {
 	struct symbol *s = NULL;
 	for(s = symbols; s; s = s->next) {
 		if(!strcmp(name, s->name)) {
@@ -203,7 +203,7 @@ void add_symbol(const char *name, u16 addr, u16 *value) {
 	symbols = s;
 }
 
-void fix_symbol(const char *name, u16 addr, u16 *const_val) {
+static void fix_symbol(const char *name, u16 addr, u16 *const_val) {
 	struct fix *f = (struct fix *)malloc(sizeof(struct fix));
 
 	f->next = NULL;
@@ -223,7 +223,7 @@ void fix_symbol(const char *name, u16 addr, u16 *const_val) {
 	fixes = f;
 }
 
-void add_define(const char *name, u16 value) {
+static void add_define(const char *name, u16 value) {
 	struct cdefine *d = NULL;
 	for(d = cf->defines; d; d = d->next) {
 		if(!strcmp(d->name, name))
@@ -240,7 +240,7 @@ void add_define(const char *name, u16 value) {
 	cf->defines = d;
 }
 
-struct symbol *find_symbol(const char *name) {
+static struct symbol *find_symbol(const char *name) {
 	struct symbol *s = NULL;
 	for(s = symbols; s; s = s->next) {
 		if(!strcmp(s->name, name)) return s;
@@ -248,7 +248,7 @@ struct symbol *find_symbol(const char *name) {
 	return NULL;
 }
 
-struct cdefine *find_define(const char *name) {
+static struct cdefine *find_define(const char *name) {
 	struct cdefine *d = NULL;
 	for(d = cf->defines; d; d = d->next) {
 		if(!strcmp(d->name, name)) return d;
@@ -256,7 +256,7 @@ struct cdefine *find_define(const char *name) {
 	return NULL;
 }
 
-int is_defined(const char *name) {
+static int is_defined(const char *name) {
 	struct symbol *s = NULL;
 	struct cdefine *d = NULL;
 	for(s = symbols; s; s = s->next) {
@@ -268,7 +268,7 @@ int is_defined(const char *name) {
 	return 0;
 }
 
-void fix_symbols() {
+static void fix_symbols() {
 	struct symbol *s = NULL;
 	struct fix *f = NULL;
 	for(f = fixes; f; f = f->next) {
@@ -284,7 +284,7 @@ void fix_symbols() {
 	}
 }
 
-void print_symbols() {
+static void print_symbols() {
 	struct symbol *s = NULL;
 	struct cdefine *d = NULL;
 	for(s = symbols; s; s = s->next) {
@@ -292,7 +292,7 @@ void print_symbols() {
 	}
 }
 
-int next_token() {
+static int next_token() {
 	char c = 0, *x = 0;
 	size_t i;
 	int newline = 0;
@@ -384,17 +384,17 @@ next_line:
 	return -1;
 }
 
-int next() {
+static int next() {
 	return (cf->token = next_token());
 }
 
-void expect(int t) {
+static void expect(int t) {
 	if(next() != t) {
 		error("expected: \"%s\", got: \"%s\"", tn[t], tn[cf->token]);		
 	}
 }
 
-void assemble_label(const char *name, int *v) {
+static void assemble_label(const char *name, int *v) {
 	// Symbols have higher priority
 	struct symbol *s = find_symbol(name);
 	struct cdefine *d = find_define(name);
@@ -420,7 +420,7 @@ void assemble_label(const char *name, int *v) {
 	}
 }
 
-void assemble_o(u16 *o, int *v) {
+static void assemble_o(u16 *o, int *v) {
 	next();
 
 	switch(cf->token) {
@@ -569,7 +569,7 @@ void assemble_o(u16 *o, int *v) {
 	}
 } 
 
-void assemble_i(int inst, u16 d, u16 s, int v1, int v2) {
+static void assemble_i(int inst, u16 d, u16 s, int v1, int v2) {
 	u16 o = 0;
 	switch(inst) {
 		case tSTO: o = 0; break;
@@ -607,7 +607,7 @@ void assemble_i(int inst, u16 d, u16 s, int v1, int v2) {
 	if(v2 != -1) MEM[IP++]._w = v2&0xFFFF;
 }
 
-int assemble() {
+static int assemble() {
 	u16 s = 0, d = 0;
 	int v1 = -1, v2 = -1;
 	int t;
@@ -758,7 +758,7 @@ done:
 	return 1;
 }
 
-void output(const char *fn) {
+static void output(const char *fn) {
 	FILE *fp = NULL;
 	size_t i;
 
@@ -773,7 +773,7 @@ void output(const char *fn) {
 	fclose(fp);
 }
 
-void free_defines_list() {
+static void free_defines_list() {
 	if(!cf) return;
 	struct cdefine *head = cf->defines, *tmp = NULL;
 	while(head) {
@@ -785,7 +785,7 @@ void free_defines_list() {
 	cf->defines = NULL;
 }
 
-void free_memory() {
+static void free_memory() {
 	struct symbol *shead = symbols, *stmp = NULL;
 	struct fix *fhead = fixes, *ftmp = NULL;
 	struct file_id *fihead = files, *fitmp = NULL;
