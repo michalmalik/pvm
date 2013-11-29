@@ -1,0 +1,1 @@
+.const_A	DAT	0x1000
