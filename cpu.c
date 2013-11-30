@@ -21,7 +21,7 @@ extern void floppy_handle_interrupt(u16 hwi);
 extern unsigned int monitor_init(struct cpu *p);
 extern void monitor_handle_interrupt(u16 hwi);
 
-static void error(const char *format, ...) {
+void error(const char *format, ...) {
         char buf_1[512] = {0};
         char buf_2[256] = {0};
         va_list va;
@@ -36,18 +36,30 @@ static void error(const char *format, ...) {
         exit(1);
 }
 
+void *zmalloc(size_t size) {
+        void *block = NULL;
+
+        if((block = malloc(size)) == NULL) {
+                error("zmalloc fail on line %d in %s", __LINE__, __FILE__);
+        }
+
+        return memset(block, 0, size);
+}       
+
 // id contains mid and hid
 // _init is the init function for the device
 // _handle_interrupt is the routine that handles all hardware interrupts
-static unsigned int add_device(struct cpu *p, unsigned int (*_init)(struct cpu *), void (*_handle_interrupt)(u16)){
+static void add_device(struct cpu *p, unsigned int (*_init)(struct cpu *), void (*_handle_interrupt)(u16)){
         struct device *dev = NULL;
         unsigned int id = 0;
 
-        dev = (struct device *)malloc(sizeof(struct device));
-        memset(dev, 0, sizeof(struct device));
+        dev = (struct device *)zmalloc(sizeof(struct device));
 
-        if(!p->devices) dev->index = 0;
-        else dev->index = p->devices->index+1;
+        if(!p->devices) 
+                dev->index = 0;
+        else 
+                dev->index = p->devices->index+1;
+
         dev->_init = _init;
         dev->_handle_interrupt = _handle_interrupt;
 
@@ -59,7 +71,6 @@ static unsigned int add_device(struct cpu *p, unsigned int (*_init)(struct cpu *
 
         dev->next = p->devices;
         p->devices = dev;
-        return 1;
 }
 
 static struct device *find_device(struct cpu *p, u16 index) {
@@ -246,15 +257,15 @@ static void step(struct cpu *p) {
                 // ADD
                 case ADD: {
                         if(*s+*d>0xFFFF) p->of = 1; 
-                        *d = (*s+*d)&0xffff; 
+                        *d = (*s+*d); 
                 } break;
                 // SUB
-                case SUB: *d = (*d-*s)&0xffff; break;
+                case SUB: *d = (*d-*s); break;
                 // MUL
-                case MUL: *d = (*s*(*d))&0xffff; break;
+                case MUL: *d = *s*(*d); break;
                 // DIV
                 case DIV: {
-                        *d = (*d/(*s));
+                        *d = *d/(*s);
                         p->r[ rD ] = (*d)%(*s);
                         p->cycles++;
                 } break;
@@ -280,11 +291,11 @@ static void step(struct cpu *p) {
                 } break;
                 // SHL
                 case SHL: {
-                        *d = ((*d)<<(*s))&0xffff;
+                        *d = (*d)<<(*s);
                 } break;
                 // SHR
                 case SHR: {
-                        *d = ((*d)>>(*s))&0xffff;
+                        *d = (*d)>>(*s);
                 } break;
                 // IFE
                 case IFE: {
@@ -375,7 +386,7 @@ static void step(struct cpu *p) {
                 // HWQ
                 case HWQ: {
                         // If the device doesn't exist
-                        // 
+                        // set registers A and B to 0
                         struct device *dev = find_device(p, *d);
                         if(dev) {
                                 p->r[rA] = dev->mid;
@@ -393,9 +404,6 @@ static void step(struct cpu *p) {
         }
 
         slp.tv_nsec = (p->cycles-start_cyc)*CPU_TICK;
-
-        debug(p);
-
         nanosleep(&slp, NULL);
 }
 
@@ -424,10 +432,11 @@ int main(int argc, char **argv) {
         // MID: 0xFF21
         // HID: 0xBEBA
         // _init = monitor_init()
-        // _handle_interrupt = monitor_handle_interrupt()
+        // _handle_interrupt = monitor_handle_interrupt(u16)
         add_device(&p, monitor_init, monitor_handle_interrupt);
 
-        int run = 0, c = 0;
+        bool run = FALSE;
+        int c = 0;
         unsigned int w1 = 0, w2 = 0;
         do {
                 if(p.sp < STACK_START-STACK_LIMIT-1) {
@@ -443,6 +452,7 @@ int main(int argc, char **argv) {
 
                 if(c == 's') {
                         step(&p);       
+                        debug(&p);
                 } else if(c == 'd') {
                         scanf("%04X", &w1);
                         printf("[0x%04X] = %04X\n", w1, p.mem[w1]);
@@ -451,7 +461,7 @@ int main(int argc, char **argv) {
                         printf("([0x%04X] = %04X) -> %04X\n", w1, p.mem[w1], w2);
                         p.mem[w1] = w2;
                 } else if(c == 'r') {
-                        run = 1;
+                        run = TRUE;
                 }
         } while(p.mem[p.ip]);
 

@@ -11,6 +11,9 @@
 
 typedef unsigned char u8;
 typedef unsigned short u16;
+typedef enum {
+	FALSE, TRUE
+} bool;
 
 enum _registers {
         rA, rB, rC, rD, rX, rY, rZ, rJ
@@ -48,5 +51,9 @@ struct device {
         unsigned int (*_init)(struct cpu *);
         void (*_handle_interrupt)(u16);
 };
+
+// We want to export these to the devices
+void error(const char *format, ...);
+void *zmalloc(size_t size);
 
 #endif

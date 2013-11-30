@@ -5,10 +5,12 @@
 #include <stdarg.h>
 
 #define zero(a)		memset((a), 0, sizeof((a)))
-#define count(a)	sizeof((a))/sizeof((a)[0])
 
 typedef unsigned char u8;
 typedef unsigned short u16;
+typedef enum {
+	FALSE, TRUE
+} bool;
 
 static void free_defines_list();
 static void free_memory();
@@ -147,9 +149,18 @@ static void error(const char *format, ...) {
 	exit(1);
 }
 
+static void *zmalloc(size_t size) {
+	void *block = NULL;
+
+	if((block = malloc(size)) == NULL) {
+		die("error: zmalloc fail on line %d in %s", __LINE__, __FILE__);
+	}
+
+	return memset(block, 0, size);
+}	
+
 static void add_file(const int id, FILE *fp) {
-	struct file_id *fi = (struct file_id *)malloc(sizeof(struct file_id));
-	memset(fi, 0, sizeof(struct file_id));
+	struct file_id *fi = (struct file_id *)zmalloc(sizeof(struct file_id));
 
 	fi->id = id;
 	fi->fp = fp;
@@ -175,8 +186,10 @@ static void init_asm(const char *i_fn) {
 		}
 	}
 
-	if(!files) fs.fid.id = 0;
-	else fs.fid.id = files->id+1;
+	if(!files) 
+		fs.fid.id = 0;
+	else 
+		fs.fid.id = files->id+1;
 
 	add_file(fs.fid.id, fs.fid.fp);
 
@@ -190,9 +203,8 @@ static void add_symbol(const char *name, u16 addr, u16 *value) {
 			error("symbol \"%s\" already defined here:\n%s: line %d: %s", name, s->f.i_fn, s->f.linenumber, s->f.line);
 		}
 	}
-	s = (struct symbol *)malloc(sizeof(struct symbol));
 
-	zero(s->name);
+	s = (struct symbol *)zmalloc(sizeof(struct symbol));
 
 	s->addr = addr;
 	strcpy(s->name, name);
@@ -204,12 +216,7 @@ static void add_symbol(const char *name, u16 addr, u16 *value) {
 }
 
 static void fix_symbol(const char *name, u16 addr, u16 *const_val) {
-	struct fix *f = (struct fix *)malloc(sizeof(struct fix));
-
-	f->next = NULL;
-	zero(f->fn);
-	zero(f->name);
-	zero(f->linebuffer);
+	struct fix *f = (struct fix *)zmalloc(sizeof(struct fix));
 
 	strcpy(f->name, name);
 	strcpy(f->fn, cf->i_fn);
@@ -229,9 +236,8 @@ static void add_define(const char *name, u16 value) {
 		if(!strcmp(d->name, name))
 			error("define \"%s\" already defined", name);
 	}
-	d = (struct cdefine *)malloc(sizeof(struct cdefine));
 
-	zero(d->name);
+	d = (struct cdefine *)zmalloc(sizeof(struct cdefine));
 
 	strcpy(d->name, name);
 	d->value = value;
@@ -260,12 +266,12 @@ static int is_defined(const char *name) {
 	struct symbol *s = NULL;
 	struct cdefine *d = NULL;
 	for(s = symbols; s; s = s->next) {
-		if(!strcmp(s->name, name)) return 1;
+		if(!strcmp(s->name, name)) return TRUE;
 	}
 	for(d = cf->defines; d; d = d->next) {
-		if(!strcmp(d->name, name)) return 1;
+		if(!strcmp(d->name, name)) return TRUE;
 	}
-	return 0;
+	return FALSE;
 }
 
 static void fix_symbols() {
@@ -286,23 +292,23 @@ static void fix_symbols() {
 
 static void print_symbols() {
 	struct symbol *s = NULL;
-	struct cdefine *d = NULL;
 	for(s = symbols; s; s = s->next) {
 		printf("%s %s 0x%04X 0x%04X\n", s->f.i_fn, s->name, s->addr, s->value);
 	}
 }
 
 static int next_token() {
-	char c = 0, *x = 0;
+	char c = 0, *x = NULL;
 	size_t i;
-	int newline = 0;
+	bool newline = FALSE;
+
 next_line:
 	if(!*cf->lineptr) {
 		if(feof(cf->fid.fp)) return tEOF;
 		if(fgets(cf->linebuffer, 256, cf->fid.fp) == 0) return tEOF;
 		cf->lineptr = cf->linebuffer;
 		cf->linenumber++;
-		newline = 1;
+		newline = TRUE;
 	}
 
 	if(*cf->lineptr == '\n' || *cf->lineptr == '\r') {
@@ -318,12 +324,14 @@ next_line:
 	// Copy clean line to cf->line for prettier
 	// error messages
 	if(newline) {
+		zero(cf->line);
 		strcpy(cf->line, cf->lineptr);
 		for(i = 0; i < strlen(cf->line); i++) {
 			if(cf->line[i]=='\r'||cf->line[i]=='\n')
 				cf->line[i]='\0';
 		}
-		newline = 0;
+
+		newline = FALSE;
 	}
 	
 	switch((c = *cf->lineptr++)) {
@@ -656,7 +664,7 @@ again:
 			}
 			case tDOT: {
 				char sym_name[128] = {0};
-				int add_sym = 1;
+				bool add_sym = TRUE;
 
 				expect(tSTR);
 				strcpy(sym_name, cf->tokenstr);
@@ -685,7 +693,7 @@ again:
 
 				next();
 				if(cf->token == tCOMMA) {
-					add_sym = 0;
+					add_sym = FALSE;
 					next();
 					goto write_mem;
 				}	
@@ -839,8 +847,7 @@ int main(int argc, char **argv) {
 	strcpy(o_fn, argv[2]);
 
 	// Init file_asm structure for the main file
-	cf = (struct file_asm *)malloc(sizeof(struct file_asm));
-	memset(cf, 0, sizeof(struct file_asm));
+	cf = (struct file_asm *)zmalloc(sizeof(struct file_asm));
 
 	init_asm(i_fn);
 
