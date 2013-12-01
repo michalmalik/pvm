@@ -5,6 +5,7 @@
 #include <stdarg.h>
 
 #define zero(a)		memset((a), 0, sizeof((a)))
+#define ZEROOST(a)	(a).o = 0; (a).w = -1
 
 typedef unsigned char u8;
 typedef unsigned short u16;
@@ -77,14 +78,19 @@ struct fix {
 	u16 const_val;
 };
 
-static union _mem MEM[0x8000] = {0};
-static u16 IP = 0;
+struct operand {
+	u16 o;
+	int w;
+};
 
-static struct file_asm *cf = NULL;
-static struct file_id *files = NULL;
+static union _mem MEM[0x8000];
+static u16 IP;
 
-static struct symbol *symbols = NULL;
-static struct fix *fixes = NULL;
+static struct file_asm *cf;
+static struct file_id *files;
+
+static struct symbol *symbols;
+static struct fix *fixes;
 
 static const char *tn[] = {
 	"A", "B", "C", "D", "X", "Y", "Z", "J",
@@ -100,7 +106,7 @@ static const char *tn[] = {
 	"(NUMBER)", "(STRING)", "(QUOTED STRING)", "(EOL)", "(EOF)"
 };
 
-enum _tokens {
+enum {
 	tA, tB, tC, tD, tX, tY, tZ, tJ,
 	tSP, tIP, tIA,
 	tSTO, 
@@ -196,11 +202,11 @@ static void init_asm(const char *i_fn) {
 	*cf = fs;
 }
 
-static void add_symbol(const char *name, u16 addr, u16 *value) {
+static void add_symbol(const char *name, u16 addr, u16 value) {
 	struct symbol *s = NULL;
 	for(s = symbols; s; s = s->next) {
 		if(!strcmp(name, s->name)) {
-			error("symbol \"%s\" already defined here:\n%s: line %d: %s", name, s->f.i_fn, s->f.linenumber, s->f.line);
+			error("symbol \"%s\" already defined here:\n%s:%d: %s", name, s->f.i_fn, s->f.linenumber, s->f.line);
 		}
 	}
 
@@ -208,14 +214,14 @@ static void add_symbol(const char *name, u16 addr, u16 *value) {
 
 	s->addr = addr;
 	strcpy(s->name, name);
-	if(value) s->value = *value;
+	s->value = value;
 	s->f = *cf;
 
 	s->next = symbols;
 	symbols = s;
 }
 
-static void fix_symbol(const char *name, u16 addr, u16 *const_val) {
+static void fix_symbol(const char *name, u16 addr, u16 const_val) {
 	struct fix *f = (struct fix *)zmalloc(sizeof(struct fix));
 
 	strcpy(f->name, name);
@@ -224,7 +230,7 @@ static void fix_symbol(const char *name, u16 addr, u16 *const_val) {
 
 	f->fix_addr = addr;
 	f->linenumber = cf->linenumber;
-	if(const_val) f->const_val = *const_val;
+	f->const_val = const_val;
 
 	f->next = fixes;
 	fixes = f;
@@ -308,6 +314,7 @@ next_line:
 		if(fgets(cf->linebuffer, 256, cf->fid.fp) == 0) return tEOF;
 		cf->lineptr = cf->linebuffer;
 		cf->linenumber++;
+
 		newline = TRUE;
 	}
 
@@ -362,8 +369,7 @@ next_line:
 					}
 				}
 			}
-			break;
-		}
+		} break;
 		default: {
 			if(isalpha(c)) {
 				zero(cf->tokenstr);
@@ -386,9 +392,9 @@ next_line:
 				cf->tokennum = strtoul(cf->lineptr, &cf->lineptr, 0);
 				return tNUM;				
 			}
-			break;	
-		}
+		} break;
 	}
+
 	return -1;
 }
 
@@ -402,62 +408,68 @@ static void expect(int t) {
 	}
 }
 
-static void assemble_label(const char *name, int *v) {
+static int assemble_label(const char *name, int w) {
 	// Symbols have higher priority
 	struct symbol *s = find_symbol(name);
 	struct cdefine *d = find_define(name);
 
-	if(*v == -1) {
-		if(s) *v = s->addr;
+	int rw = w;
+
+	if(w == -1) {
+		if(s) rw = s->addr;
 		else {
-			if(d) *v = d->value;
+			if(d) rw = d->value;
 			else {
-				fix_symbol(name, IP+1, NULL);
-				*v = 0;
+				fix_symbol(name, IP+1, 0);
+				rw = 0;
 			}
 		}
 	} else {
-		if(s) *v += s->addr;
+		if(s) rw += s->addr;
 		else {
-			if(d) *v += d->value;
+			if(d) rw += d->value;
 			else {
-				fix_symbol(name, IP+1, (u16 *)v);
-				*v = 0;
+				fix_symbol(name, IP+1, rw);
+				rw = 0;
 			}
 		}
 	}
+
+	return rw;
 }
 
-static void assemble_o(u16 *o, int *v) {
-	next();
+static struct operand assemble_o() {
+	u16 o = 0;
+	int w = -1;
 
+	next();
 	switch(cf->token) {
 		// register
 		case tA: case tB: case tC: case tD:
 		case tX: case tY: case tZ: case tJ: {
-			*o = cf->token&0x7;
+			o = cf->token&0x7;
 		} break;
 
 		// SP
 		case tSP: {
-			*o = 0x1A;
+			o = 0x1a;
 		} break;
 
 		// IP
 		case tIP: {
-			*o = 0x1B;
+			o = 0x1b;
 		} break;
 
 		// nextw
 		case tNUM: {
-			*o = 0x18;
-			*v = cf->tokennum;
+			o = 0x18;
+			w = cf->tokennum;
 		} break;
 
 		// nextw
 		case tSTR: {
-			*o = 0x18;
-			assemble_label(cf->tokenstr, v);
+			o = 0x18;
+			w = assemble_label(cf->tokenstr, w);
 		} break;
 
 		default: {
@@ -469,46 +481,47 @@ static void assemble_o(u16 *o, int *v) {
 		next();
 
 		if(cf->token <= 7) {
-			*o = cf->token&7;
+			o = cf->token&7;
 			next();
 			if(cf->token == tPLUS) {
 				next();
 
 				// [register + nextw]
 				if(cf->token == tNUM) {
-					*o += 0x10;
-					*v = cf->tokennum;
+					o += 0x10;
+					w = cf->tokennum;
 				}
 				// [register + nextw]
 				else if(cf->token == tSTR) {
-					*o += 0x10;
-					assemble_label(cf->tokenstr, v);
+					o += 0x10;
+					w = assemble_label(cf->tokenstr, w);
 				} else {
 					error("expected [register+nextw]\n\n%s", cf->line);
 				}
 				next();
 			// [register]
 			} else if(cf->token == tBE) {
-				*o += 0x8;
+				o += 0x8;
 			} 
 		}
 
 		if(cf->token == tNUM) {
 			// [nextw]
-			*v = cf->tokennum;
-			*o = 0x19;
+			w = cf->tokennum;
+			o = 0x19;
+			
 			next();
 			if(cf->token == tPLUS) {
 				next();
 				// [nextw]
 				if(cf->token == tNUM) {
-					*v += cf->tokennum;
+					w += cf->tokennum;
 				// [register + nextw]
 				} else if(cf->token <= 7) {
-					*o = (cf->token&7)+0x10;
+					o = (cf->token&7)+0x10;
 				// [nextw]
 				} else if(cf->token == tSTR) {
-					assemble_label(cf->tokenstr, v);
+					w = assemble_label(cf->tokenstr, w);
 				} else {
 					error("expected value\n\n%s", cf->line);
 				}
@@ -517,8 +530,9 @@ static void assemble_o(u16 *o, int *v) {
 		}
 
 		if(cf->token == tSTR) {
-			*o = 0x19;
-			*v = 0;
+			o = 0x19;
+			w = 0;
+			
 			int f_token = cf->token;
 			int s_token = -1;
 			int fdef = -1;
@@ -532,9 +546,9 @@ static void assemble_o(u16 *o, int *v) {
 			if(cf->token == tPLUS) {
 				next();
 				if(cf->token == tNUM) {
-					*v += cf->tokennum;
+					w += cf->tokennum;
 				} else if(cf->token <= 7) {
-					*o = (cf->token&7)+0x10;
+					o = (cf->token&7)+0x10;
 				} else if(cf->token == tSTR) {
 					s_token = cf->token;
 					strcpy(s_buf, cf->tokenstr);
@@ -547,7 +561,7 @@ static void assemble_o(u16 *o, int *v) {
 			// [defined + NON_STR]
 			// [undefined + NON_STR]
 			if(s_token == -1) {
-				assemble_label(f_buf, v);
+				w = assemble_label(f_buf, w);
 			} else {
 				fdef = is_defined(f_buf);
 				sdef = is_defined(s_buf);
@@ -555,19 +569,18 @@ static void assemble_o(u16 *o, int *v) {
 				// [defined + defined]
 				// [defined + undefined]
 				if(fdef && (sdef || !sdef)) {
-					assemble_label(f_buf, v);
-					assemble_label(s_buf, v);
+					w = assemble_label(f_buf, w);
+					w = assemble_label(s_buf, w);
 				} 
 				// [undefined + defined]
 				if(!fdef && sdef) {
-					assemble_label(s_buf, v);
-					assemble_label(f_buf, v);
+					w = assemble_label(s_buf, w);
+					w = assemble_label(f_buf, w);
 				}
 				// [undefined + undefined]
 				if(!fdef && !sdef) {
-					*v = -1;
-					assemble_label(f_buf, v);
-					assemble_label(s_buf, v);
+					w = assemble_label(f_buf, -1);
+					w = assemble_label(s_buf, w);
 				}
 			}
 		}
@@ -575,49 +588,24 @@ static void assemble_o(u16 *o, int *v) {
 		if(cf->token != tBE) 
 			error("expected ]\n\n%s", cf->line);
 	}
+
+	struct operand op = {
+		.o = o,
+		.w = w
+	};
+	return op;
 } 
 
-static void assemble_i(int inst, u16 d, u16 s, int v1, int v2) {
-	u16 o = 0;
-	switch(inst) {
-		case tSTO: o = 0; break;
-		case tADD: o = 1; break;
-		case tSUB: o = 2; break;
-		case tMUL: o = 3; break;
-		case tDIV: o = 4; break;
-		case tMOD: o = 5; break;
-		case tNOT: o = 6; break;
-		case tAND: o = 7; break;
-		case tOR: o = 8; break;
-		case tXOR: o = 9; break;
-		case tSHL: o = 0x0A; break;
-		case tSHR: o = 0x0B; break;
-		case tIFE: o = 0x0C; break;
-		case tIFN: o = 0x0D; break;
-		case tIFG: o = 0x0E; break;
-		case tIFL: o = 0x0F; break;
-		case tIFGE: o = 0x10; break;
-		case tIFLE: o = 0x11; break;
-		case tJMP: o = 0x12; break;
-		case tJTR: o = 0x13; break;
-		case tPUSH: o = 0x14; break;
-		case tPOP: o = 0x15; break;
-		case tRET: o = 0x16; break;
-		case tRETI: o = 0x17; break;
-		case tIAR: o = 0x18; break;
-		case tINT: o = 0x19; break;
-		case tHWI: o = 0x1A; break;
-		case tHWQ: o = 0x1B; break;
-		case tHWN: o = 0x1C; break;
-	}
-	MEM[IP++]._w = (u16)(o|(s<<6)|(d<<11));
-	if(v1 != -1) MEM[IP++]._w = v1&0xFFFF;		
-	if(v2 != -1) MEM[IP++]._w = v2&0xFFFF;
+static void assemble_i(int inst, struct operand d, struct operand s) {
+	u16 o = inst - tSTO;
+	MEM[IP++]._w = (u16)(o|(s.o<<6)|(d.o<<11));
+
+	if(d.w != -1) MEM[IP++]._w = d.w & 0xffff;		
+	if(s.w != -1) MEM[IP++]._w = s.w & 0xffff;
 }
 
-static int assemble() {
-	u16 s = 0, d = 0;
-	int v1 = -1, v2 = -1;
+static void assemble() {
+	struct operand d, s;
 	int t;
 	u16 b = 0;
 	struct file_asm tf = {0};
@@ -626,8 +614,8 @@ static int assemble() {
 	for(;;) {
 		next();
 again:
-		v1 = -1;
-		v2 = -1;
+		ZEROOST(d);
+		ZEROOST(s);
 		t = cf->token;
 
 		switch(t) {
@@ -635,12 +623,11 @@ again:
 			case tEOL: {
 				next();
 				goto again;
-			}
+			} break;
 			case tCOLON: {
 				expect(tSTR);
-				add_symbol(cf->tokenstr, IP, &IP);
-				break;
-			}
+				add_symbol(cf->tokenstr, IP, IP);
+			} break;
 			case tHASH: {
 				expect(tSTR);
 				if(!strcasecmp(cf->tokenstr, "include")) {			
@@ -660,8 +647,7 @@ again:
 					expect(tNUM);
 					add_define(name, cf->tokennum);
 				}
-				break;
-			}
+			} break;
 			case tDOT: {
 				char sym_name[128] = {0};
 				bool add_sym = TRUE;
@@ -675,12 +661,12 @@ again:
 			write_mem:
 				switch(cf->token) {
 					case tNUM: {
-						if(add_sym) add_symbol(sym_name, IP, &cf->tokennum);
+						if(add_sym) add_symbol(sym_name, IP, cf->tokennum);
 						MEM[IP++]._w = cf->tokennum;
 					} break;
 					case tQSTR: {
 						b = 0 | cf->tokenstr[0];
-						if(add_sym) add_symbol(sym_name, IP, &b);
+						if(add_sym) add_symbol(sym_name, IP, b);
 
 						for(i = 0; i < strlen(cf->tokenstr); i++) {
 							MEM[IP++]._b.lo = cf->tokenstr[i];
@@ -708,25 +694,22 @@ again:
 			case tIFE: case tIFN: case tIFG: case tIFL:
 			case tIFGE: case tIFLE: 
 			{
-				assemble_o(&d, &v1);
+				d = assemble_o();
 				expect(tCOMMA);				
-				assemble_o(&s, &v2);
-				assemble_i(t, d, s, v1, v2);
-				break;
-			}
+				s = assemble_o();
+				assemble_i(t, d, s);
+			} break;
 			case tNOT:
 			case tJMP: case tJTR: case tPUSH: case tPOP: 
 			case tIAR: case tINT: 
 			case tHWI: case tHWQ: case tHWN: {
-				assemble_o(&d, &v1);
-				assemble_i(t, d, 0, v1, -1);
-				break;	
-			}
+				d = assemble_o();
+				assemble_i(t, d, s);
+			} break;
 
 			case tRET: case tRETI: {
-				assemble_i(t, 0, 0, -1, -1);
-				break;
-			}
+				assemble_i(t, d, s);
+			} break;
 
 			case tDAT: {
 				next();
@@ -753,17 +736,15 @@ again:
 				}
 
 				goto again;
-			}
+			} break;
 
 			default: {
 				error("invalid instruction \"%s\"", cf->tokenstr);
-				break;
-			}
+			} break;
 		}
 	}
 done:
 	free_defines_list();
-	return 1;
 }
 
 static void output(const char *fn) {
