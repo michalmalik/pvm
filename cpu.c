@@ -410,7 +410,7 @@ static void step(struct cpu *p) {
 int main(int argc, char **argv) {
         char i_fn[128] = {0};
         char o_fn[128] = {0};
-        static struct cpu p = {0};
+        static struct cpu p;
 
         if(argc < 3) {
                 error("usage: %s <program> <memory_dump>", argv[0]);
