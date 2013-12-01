@@ -1,7 +1,8 @@
 JMP start
 
-#include "ivt.asm"
 #include "memory.asm"
+#include "devices.asm"
+#include "ivt.asm"
 
 :start
 	IAR handle_ivt_interrupt
