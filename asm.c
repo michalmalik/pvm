@@ -5,7 +5,6 @@
 #include <stdarg.h>
 
 #define zero(a)		memset((a), 0, sizeof((a)))
-#define ZEROOST(a)	(a).o = 0; (a).w = -1
 
 typedef unsigned char u8;
 typedef unsigned short u16;
@@ -13,27 +12,17 @@ typedef enum {
 	FALSE, TRUE
 } bool;
 
-static void free_defines_list();
-static void free_memory();
-
-union _mem {
-	struct {
-		u8 lo;
-		u8 hi;
-	} _b;
-	u16 _w;
+struct Node {
+	struct Node *next;
+	void *block;
 };
 
 struct file_id {
-	struct file_id *next;
-
 	FILE *fp;
 	unsigned int id;
 };
 
-struct cdefine {
-	struct cdefine *next;
-
+struct define {
 	char name[128];
 	u16 value;
 };
@@ -42,7 +31,7 @@ struct file_asm {
 	struct file_id fid;
 
 	char i_fn[64];
-	char tokenstr[64];
+	char tokenstr[128];
 	char linebuffer[256];
 	
 	int linenumber;
@@ -53,12 +42,10 @@ struct file_asm {
 	int token;
 	u16 tokennum;
 
-	struct cdefine *defines;
+	struct Node *defines;
 };
 
 struct symbol {
-	struct symbol *next;
-
 	char name[128];
 	u16 addr;
 	u16 value;
@@ -67,8 +54,6 @@ struct symbol {
 };
 
 struct fix {
-	struct fix *next;
-
 	char fn[64];
 	char name[128];
 	char linebuffer[256];
@@ -83,14 +68,22 @@ struct operand {
 	int w;
 };
 
+union _mem {
+	struct {
+		u8 lo;
+		u8 hi;
+	} _b;
+	u16 _w;
+};
+
 static union _mem MEM[0x8000];
 static u16 IP;
 
 static struct file_asm *cf;
-static struct file_id *files;
 
-static struct symbol *symbols;
-static struct fix *fixes;
+static struct Node *files;
+static struct Node *symbols;
+static struct Node *fixes;
 
 static const char *tn[] = {
 	"A", "B", "C", "D", "X", "Y", "Z", "J",
@@ -120,7 +113,10 @@ enum {
 	tNUM, tSTR, tQSTR, tEOL, tEOF
 };
 
-#define LASTTOKEN	tEOF
+#define LAST_TOKEN	tEOF
+
+static void free_node(struct Node *head);
+static void free_memory();
 
 static void die(const char *format, ...) {
 	char buf[512] = {0};
@@ -132,7 +128,7 @@ static void die(const char *format, ...) {
 
 	puts(buf);
 
-	free_defines_list();
+	free_node(cf->defines);
 	free_memory();
 	exit(1);
 }
@@ -150,29 +146,34 @@ static void error(const char *format, ...) {
 
 	puts(buf_1);
 
-	free_defines_list();
+	free_node(cf->defines);
 	free_memory();
 	exit(1);
 }
 
-static void *zmalloc(size_t size) {
+static void *scalloc(size_t size) {
 	void *block = NULL;
 
-	if((block = malloc(size)) == NULL) {
-		die("error: zmalloc fail on line %d in %s", __LINE__, __FILE__);
+	if((block = calloc(1, size)) == NULL) {
+		die("error: calloc fail on line %d in %s", __LINE__, __FILE__);
 	}
 
-	return memset(block, 0, size);
+	return block;
 }	
 
+// DRY
+#define NEW_NODE	(struct Node *)scalloc(sizeof(struct Node))
+
 static void add_file(const int id, FILE *fp) {
-	struct file_id *fi = (struct file_id *)zmalloc(sizeof(struct file_id));
+	struct Node *node = NEW_NODE;
+	struct file_id *fi = (struct file_id *)scalloc(sizeof(struct file_id));
 
 	fi->id = id;
 	fi->fp = fp;
 
-	fi->next = files;
-	files = fi;
+	node->next = files;
+	node->block = fi;
+	files = node;
 }
 
 static void init_asm(const char *i_fn) {
@@ -195,7 +196,7 @@ static void init_asm(const char *i_fn) {
 	if(!files) 
 		fs.fid.id = 0;
 	else 
-		fs.fid.id = files->id+1;
+		fs.fid.id = ((struct file_id *)files->block)->id+1;
 
 	add_file(fs.fid.id, fs.fid.fp);
 
@@ -203,26 +204,33 @@ static void init_asm(const char *i_fn) {
 }
 
 static void add_symbol(const char *name, u16 addr, u16 value) {
+	struct Node *node = NULL;
 	struct symbol *s = NULL;
-	for(s = symbols; s; s = s->next) {
-		if(!strcmp(name, s->name)) {
-			error("symbol \"%s\" already defined here:\n%s:%d: %s", name, s->f.i_fn, s->f.linenumber, s->f.line);
+
+	for(node = symbols; node; node = node->next) {
+		s = (struct symbol *)node->block;
+		if(!strcmp(s->name, name)) {
+			error("symbol \"%s\" already defined here:\n%s:%d: %s", name, s->f.i_fn, 
+				s->f.linenumber, s->f.line);
 		}
 	}
 
-	s = (struct symbol *)zmalloc(sizeof(struct symbol));
+	node = NEW_NODE;
+	s = (struct symbol *)scalloc(sizeof(struct symbol));
 
 	s->addr = addr;
 	strcpy(s->name, name);
 	s->value = value;
 	s->f = *cf;
 
-	s->next = symbols;
-	symbols = s;
+	node->next = symbols;
+	node->block = s;
+	symbols = node;
 }
 
 static void fix_symbol(const char *name, u16 addr, u16 const_val) {
-	struct fix *f = (struct fix *)zmalloc(sizeof(struct fix));
+	struct Node *node = NEW_NODE;
+	struct fix *f = (struct fix *)scalloc(sizeof(struct fix));
 
 	strcpy(f->name, name);
 	strcpy(f->fn, cf->i_fn);
@@ -232,58 +240,82 @@ static void fix_symbol(const char *name, u16 addr, u16 const_val) {
 	f->linenumber = cf->linenumber;
 	f->const_val = const_val;
 
-	f->next = fixes;
-	fixes = f;
+	node->next = fixes;
+	node->block = f;
+	fixes = node;
 }
 
 static void add_define(const char *name, u16 value) {
-	struct cdefine *d = NULL;
-	for(d = cf->defines; d; d = d->next) {
+	struct Node *node = NULL;
+	struct define *d = NULL;
+
+	for(node = cf->defines; node; node = node->next) {
+		d = (struct define *)node->block;
 		if(!strcmp(d->name, name))
 			error("define \"%s\" already defined", name);
 	}
 
-	d = (struct cdefine *)zmalloc(sizeof(struct cdefine));
+	node = NEW_NODE;
+	d = (struct define *)scalloc(sizeof(struct define));
 
 	strcpy(d->name, name);
 	d->value = value;
 
-	d->next = cf->defines;
-	cf->defines = d;
+	node->next = cf->defines;
+	node->block = d;
+	cf->defines = node;
 }
+
+// DRY
+#define CMP_NODE_SYMBOL()	strcmp(((struct symbol *)node->block)->name, name)
+#define CMP_NODE_DEFINE()	strcmp(((struct define *)node->block)->name, name)
 
 static struct symbol *find_symbol(const char *name) {
-	struct symbol *s = NULL;
-	for(s = symbols; s; s = s->next) {
-		if(!strcmp(s->name, name)) return s;
+	struct Node *node = NULL;
+
+	for(node = symbols; node; node = node->next) {
+		if(!CMP_NODE_SYMBOL())
+			return node->block;
 	}
+
 	return NULL;
 }
 
-static struct cdefine *find_define(const char *name) {
-	struct cdefine *d = NULL;
-	for(d = cf->defines; d; d = d->next) {
-		if(!strcmp(d->name, name)) return d;
+static struct define *find_define(const char *name) {
+	struct Node *node = NULL;
+
+	for(node = cf->defines; node; node = node->next) {
+		if(!CMP_NODE_DEFINE()) 
+			return node->block;
 	}
+
 	return NULL;
 }
 
+// Symbols have higher priority than defines
 static int is_defined(const char *name) {
-	struct symbol *s = NULL;
-	struct cdefine *d = NULL;
-	for(s = symbols; s; s = s->next) {
-		if(!strcmp(s->name, name)) return TRUE;
+	struct Node *node = NULL;
+
+	for(node = symbols; node; node = node->next) {
+		if(!CMP_NODE_SYMBOL())
+			return TRUE;
 	}
-	for(d = cf->defines; d; d = d->next) {
-		if(!strcmp(d->name, name)) return TRUE;
+
+	for(node = cf->defines; node; node = node->next) {
+		if(!CMP_NODE_DEFINE())
+			return TRUE;
 	}
+
 	return FALSE;
 }
 
 static void fix_symbols() {
+	struct Node *node = NULL;
 	struct symbol *s = NULL;
 	struct fix *f = NULL;
-	for(f = fixes; f; f = f->next) {
+
+	for(node = fixes; node; node = node->next) {
+		f = (struct fix *)node->block;
 		s = find_symbol(f->name);
 		if(!s) {
 			die("%s:%d, error: symbol \"%s\" is not defined\n\n%s", f->fn, f->linenumber,
@@ -297,8 +329,11 @@ static void fix_symbols() {
 }
 
 static void print_symbols() {
+	struct Node *node = NULL;
 	struct symbol *s = NULL;
-	for(s = symbols; s; s = s->next) {
+	
+	for(node = symbols; node; node = node->next) {
+		s = (struct symbol *)node->block;
 		printf("%s %s 0x%04X 0x%04X\n", s->f.i_fn, s->name, s->addr, s->value);
 	}
 }
@@ -334,7 +369,7 @@ next_line:
 		zero(cf->line);
 		strcpy(cf->line, cf->lineptr);
 		for(i = 0; i < strlen(cf->line); i++) {
-			if(cf->line[i]=='\r'||cf->line[i]=='\n')
+			if(cf->line[i]=='\r'|| cf->line[i]=='\n')
 				cf->line[i]='\0';
 		}
 
@@ -381,7 +416,7 @@ next_line:
 				}
 				*x = 0;
 				int i;
-				for(i = 0; i < LASTTOKEN; i++) {
+				for(i = 0; i < LAST_TOKEN; i++) {
 					if(!strcasecmp(tn[i], cf->tokenstr)) {
 						return i;
 					}
@@ -411,7 +446,7 @@ static void expect(int t) {
 static int assemble_label(const char *name, int w) {
 	// Symbols have higher priority
 	struct symbol *s = find_symbol(name);
-	struct cdefine *d = find_define(name);
+	struct define *d = find_define(name);
 
 	int rw = w;
 
@@ -604,6 +639,8 @@ static void assemble_i(int inst, struct operand d, struct operand s) {
 	if(s.w != -1) MEM[IP++]._w = s.w & 0xffff;
 }
 
+#define ZERO_OPR_ST(a)	(a).o = 0; (a).w = -1
+
 static void assemble() {
 	struct operand d, s;
 	int t;
@@ -614,8 +651,8 @@ static void assemble() {
 	for(;;) {
 		next();
 again:
-		ZEROOST(d);
-		ZEROOST(s);
+		ZERO_OPR_ST(d);
+		ZERO_OPR_ST(s);
 		t = cf->token;
 
 		switch(t) {
@@ -744,7 +781,7 @@ again:
 		}
 	}
 done:
-	free_defines_list();
+	free_node(cf->defines);
 }
 
 static void output(const char *fn) {
@@ -762,54 +799,35 @@ static void output(const char *fn) {
 	fclose(fp);
 }
 
-static void free_defines_list() {
-	if(!cf) return;
-	struct cdefine *head = cf->defines, *tmp = NULL;
+static void free_node(struct Node *head) {
+	if(!head) return;
+
+	struct Node *tmp = NULL;
 	while(head) {
 		tmp = head;
 		head = head->next;
+		if(tmp->block) free(tmp->block);
 		free(tmp);
 	}
+
 	free(head);
-	cf->defines = NULL;
+	head = NULL;
 }
 
 static void free_memory() {
-	struct symbol *shead = symbols, *stmp = NULL;
-	struct fix *fhead = fixes, *ftmp = NULL;
-	struct file_id *fihead = files, *fitmp = NULL;
+	struct Node *node = NULL;
+	struct file_id *tmp = NULL;
 
-	// Free symbol linked list
-	while(shead) {
-		stmp = shead;
-		shead = shead->next;
-		free(stmp); 
-	}
-	free(shead);
-	symbols = NULL;
-
-	// Free fix linked list
-	while(fhead) {
-		ftmp = fhead;
-		fhead = fhead->next;
-		free(ftmp);
-	}
-	free(fhead);
-	fixes = NULL;
+	free_node(symbols);
+	free_node(fixes);
 
 	// Free all files
-	for(fitmp = files; fitmp; fitmp = fitmp->next) {
-		fclose(fitmp->fp);
+	for(node = files; node; node = node->next) {
+		tmp = (struct file_id *)node->block;
+		fclose(tmp->fp);
 	}
-	fitmp = NULL;
 	
-	while(fihead) {
-		fitmp = fihead;
-		fihead = fihead->next;
-		free(fitmp);
-	}
-	free(fihead);
-	fixes = NULL;
+	free_node(files);
 
 	// Free current file structure
 	free(cf);
@@ -828,7 +846,7 @@ int main(int argc, char **argv) {
 	strcpy(o_fn, argv[2]);
 
 	// Init file_asm structure for the main file
-	cf = (struct file_asm *)zmalloc(sizeof(struct file_asm));
+	cf = (struct file_asm *)scalloc(sizeof(struct file_asm));
 
 	init_asm(i_fn);
 
