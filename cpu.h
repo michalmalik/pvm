@@ -54,6 +54,6 @@ struct device {
 
 // We want to export these to the devices
 void error(const char *format, ...);
-void *zmalloc(size_t size);
+void *scalloc(size_t size);
 
 #endif

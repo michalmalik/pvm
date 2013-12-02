@@ -76,6 +76,4 @@ void disassemble(u16 *mem, u16 ip, char *out) {
 		if(OPD(ins) >= 0x10 && OPD(ins) <= 0x19) dis_opr(mem, OPS(ins), ip+1, out);
 		else dis_opr(mem, OPS(ins), ip, out);
 	}	
-
-	sprintf(out+strlen(out), "\n");
 }

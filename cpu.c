@@ -36,14 +36,14 @@ void error(const char *format, ...) {
         exit(1);
 }
 
-void *zmalloc(size_t size) {
+void *scalloc(size_t size) {
         void *block = NULL;
 
-        if((block = malloc(size)) == NULL) {
-                error("zmalloc fail on line %d in %s", __LINE__, __FILE__);
+        if((block = calloc(1, size)) == NULL) {
+                error("calloc fail on line %d in %s", __LINE__, __FILE__);
         }
 
-        return memset(block, 0, size);
+        return block;
 }       
 
 // id contains mid and hid
@@ -53,7 +53,7 @@ static void add_device(struct cpu *p, unsigned int (*_init)(struct cpu *), void 
         struct device *dev = NULL;
         unsigned int id = 0;
 
-        dev = (struct device *)zmalloc(sizeof(struct device));
+        dev = (struct device *)scalloc(sizeof(struct device));
 
         if(!p->devices) 
                 dev->index = 0;
@@ -75,32 +75,39 @@ static void add_device(struct cpu *p, unsigned int (*_init)(struct cpu *), void 
 
 static struct device *find_device(struct cpu *p, u16 index) {
         struct device *dev = NULL;
+
         for(dev = p->devices; dev; dev = dev->next) {
                 if(index == dev->index) {
                         return dev;
                 }
         }
+
         return NULL;
 }
 
 static u16 count_devices(struct cpu *p) {
         struct device *dev = p->devices;
         u16 ret = 0;
+        
         while(dev) {
                 ret++;
                 dev = dev->next;
         }
+
         return ret;
 }
 
 static void free_devices(struct cpu *p) {
         if(!p->devices) return;
+        
         struct device *head = p->devices, *tmp = NULL;
+        
         while(head) {
                 tmp = head;
                 head = head->next;
                 free(tmp);
         }
+        
         free(head);
         head = NULL;
 }
@@ -241,7 +248,7 @@ static void step(struct cpu *p) {
         struct timespec slp = {0};
 
         disassemble(p->mem, p->ip, out);
-        printf("%s", out);
+        puts(out);
 
         p->cycles++;
 
