@@ -38,7 +38,7 @@ struct file_asm {
 	char line[256];
 	char *lineptr;
 
-	int token;
+	u32 token;
 	u16 tokennum;
 
 	struct Node *defines;
@@ -647,7 +647,7 @@ static void assemble_i(int inst, struct operand d, struct operand s) {
 
 static void assemble() {
 	struct operand d, s;
-	int t;
+	u32 t;
 	u16 b = 0;
 	struct file_asm tf = {0};
 	size_t i;

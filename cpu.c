@@ -51,7 +51,7 @@ void *scalloc(size_t size) {
 // _handle_interrupt is the routine that handles all hardware interrupts
 static void add_device(struct cpu *p, u32 (*_init)(struct cpu *), void (*_handle_interrupt)(u16)){
         struct device *dev = NULL;
-        unsigned int id = 0;
+        u32 id = 0;
 
         dev = (struct device *)scalloc(sizeof(struct device));
 
