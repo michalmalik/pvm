@@ -6,9 +6,9 @@
 
 #define DEVICE_ID	0x32ba236e
 
-static struct cpu *proc = NULL;
+static struct cpu *proc;
 
-unsigned int floppy_init(struct cpu *p) {
+u32 floppy_init(struct cpu *p) {
 	proc = p;
 
 	printf("Initiating floppy, id 0x%08X\n", DEVICE_ID);

@@ -6,9 +6,9 @@
 
 #define DEVICE_ID	0xff21beba
 
-static struct cpu *proc = NULL;
+static struct cpu *proc;
 
-unsigned int monitor_init(struct cpu *p) {
+u32 monitor_init(struct cpu *p) {
 	proc = p;
 
 	printf("Initiating monitor, id 0x%08X\n", DEVICE_ID);

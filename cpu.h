@@ -1,6 +1,8 @@
 #ifndef __CPU_H__
 #define __CPU_H__
 
+#include <stdint.h>
+
 #define zero(a)		(memset((a), 0, sizeof((a))))
 #define count(a)	(sizeof((a))/sizeof((a)[0]))
 
@@ -9,11 +11,9 @@
 #define OPS(op)         ((op>>6)&0x1f)
 #define USINGNW(w)      ((w >= 0x10 && w <= 0x19))
 
-typedef unsigned char u8;
-typedef unsigned short u16;
-typedef enum {
-	FALSE, TRUE
-} bool;
+typedef uint8_t u8;
+typedef uint16_t u16;
+typedef uint32_t u32;
 
 enum _registers {
         rA, rB, rC, rD, rX, rY, rZ, rJ
@@ -33,7 +33,7 @@ struct cpu {
         u16 sp, ip, ia;
         u8 of:1;
         u16 mem[0x8000];
-        unsigned int cycles;
+        u32 cycles;
 
         // Linked list of devices
         struct device *devices;
@@ -48,7 +48,7 @@ struct device {
         u16 mid; // manufacter id
         u16 hid; // hardware id
 
-        unsigned int (*_init)(struct cpu *);
+        u32 (*_init)(struct cpu *);
         void (*_handle_interrupt)(u16);
 };
 

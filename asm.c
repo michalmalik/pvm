@@ -1,16 +1,15 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdarg.h>
+#include <stdint.h>
 #include <string.h>
 #include <ctype.h>
-#include <stdarg.h>
 
 #define zero(a)		memset((a), 0, sizeof((a)))
 
-typedef unsigned char u8;
-typedef unsigned short u16;
-typedef enum {
-	FALSE, TRUE
-} bool;
+typedef uint8_t u8;
+typedef uint16_t u16;
+typedef uint32_t u32;
 
 struct Node {
 	struct Node *next;
@@ -19,7 +18,7 @@ struct Node {
 
 struct file_id {
 	FILE *fp;
-	unsigned int id;
+	u32 id;
 };
 
 struct define {
@@ -34,7 +33,7 @@ struct file_asm {
 	char tokenstr[128];
 	char linebuffer[256];
 	
-	int linenumber;
+	u32 linenumber;
 
 	char line[256];
 	char *lineptr;
@@ -57,7 +56,7 @@ struct fix {
 	char fn[64];
 	char name[128];
 	char linebuffer[256];
-	int linenumber;
+	u32 linenumber;
 
 	u16 fix_addr;
 	u16 const_val;
@@ -164,7 +163,7 @@ static void *scalloc(size_t size) {
 // DRY
 #define NEW_NODE	(struct Node *)scalloc(sizeof(struct Node))
 
-static void add_file(const int id, FILE *fp) {
+static void add_file(const u32 id, FILE *fp) {
 	struct Node *node = NEW_NODE;
 	struct file_id *fi = (struct file_id *)scalloc(sizeof(struct file_id));
 
@@ -293,20 +292,20 @@ static struct define *find_define(const char *name) {
 }
 
 // Symbols have higher priority than defines
-static int is_defined(const char *name) {
+static u32 is_defined(const char *name) {
 	struct Node *node = NULL;
 
 	for(node = symbols; node; node = node->next) {
 		if(!CMP_NODE_SYMBOL())
-			return TRUE;
+			return 1;
 	}
 
 	for(node = cf->defines; node; node = node->next) {
 		if(!CMP_NODE_DEFINE())
-			return TRUE;
+			return 1;
 	}
 
-	return FALSE;
+	return 0;
 }
 
 static void fix_symbols() {
@@ -338,10 +337,10 @@ static void print_symbols() {
 	}
 }
 
-static int next_token() {
+static u32 next_token() {
 	char c = 0, *x = NULL;
 	size_t i;
-	bool newline = FALSE;
+	u32 newline = 0;
 
 next_line:
 	if(!*cf->lineptr) {
@@ -350,7 +349,7 @@ next_line:
 		cf->lineptr = cf->linebuffer;
 		cf->linenumber++;
 
-		newline = TRUE;
+		newline = 0;
 	}
 
 	if(*cf->lineptr == '\n' || *cf->lineptr == '\r') {
@@ -373,7 +372,7 @@ next_line:
 				cf->line[i]='\0';
 		}
 
-		newline = FALSE;
+		newline = 0;
 	}
 	
 	switch((c = *cf->lineptr++)) {
@@ -411,11 +410,13 @@ next_line:
 
 				cf->lineptr--;				
 				x = cf->tokenstr;
+
 				while(isalnum(*cf->lineptr) || *cf->lineptr == '_') {
 					*x++ = *cf->lineptr++;
 				}
 				*x = 0;
-				int i;
+
+				size_t i;
 				for(i = 0; i < LAST_TOKEN; i++) {
 					if(!strcasecmp(tn[i], cf->tokenstr)) {
 						return i;
@@ -430,14 +431,17 @@ next_line:
 		} break;
 	}
 
-	return -1;
+	// Make sure we don't return
+	// an existing token when it clearly
+	// does not exist
+	return LAST_TOKEN+1;
 }
 
-static int next() {
+static u32 next() {
 	return (cf->token = next_token());
 }
 
-static void expect(int t) {
+static void expect(u32 t) {
 	if(next() != t) {
 		error("expected: \"%s\", got: \"%s\"", tn[t], tn[cf->token]);		
 	}
@@ -687,7 +691,7 @@ again:
 			} break;
 			case tDOT: {
 				char sym_name[128] = {0};
-				bool add_sym = TRUE;
+				u32 add_sym = 1;
 
 				expect(tSTR);
 				strcpy(sym_name, cf->tokenstr);
@@ -716,7 +720,7 @@ again:
 
 				next();
 				if(cf->token == tCOMMA) {
-					add_sym = FALSE;
+					add_sym = 0;
 					next();
 					goto write_mem;
 				}	

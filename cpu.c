@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 #include <stdarg.h>
+#include <string.h>
 #include <time.h>
 
 #include "cpu.h"
@@ -49,7 +49,7 @@ void *scalloc(size_t size) {
 // id contains mid and hid
 // _init is the init function for the device
 // _handle_interrupt is the routine that handles all hardware interrupts
-static void add_device(struct cpu *p, unsigned int (*_init)(struct cpu *), void (*_handle_interrupt)(u16)){
+static void add_device(struct cpu *p, u32 (*_init)(struct cpu *), void (*_handle_interrupt)(u16)){
         struct device *dev = NULL;
         unsigned int id = 0;
 
@@ -181,13 +181,13 @@ static u16 *getopr(struct cpu *p, u8 b, u16 *w) {
 
         switch(b) {
                 // register
-                case 0x00: case 0x01: case 0x02: case 0x03:
-                case 0x04: case 0x05: case 0x06: case 0x07:
+                case rA: case rB: case rC: case rD:
+                case rX: case rY: case rZ: case rJ:
                         o = p->r+b;
                         break;
                 // [register]
-                case 0x08: case 0x09: case 0x0A: case 0x0B:
-                case 0x0C: case 0x0D: case 0x0E: case 0x0F:
+                case 0x08: case 0x09: case 0x0a: case 0x0b:
+                case 0x0c: case 0x0d: case 0x0e: case 0x0f:
                         o = p->mem+p->r[b-0x08];
                         break;
                 // [register+nextw]
@@ -204,11 +204,11 @@ static u16 *getopr(struct cpu *p, u8 b, u16 *w) {
                         o = p->mem+*w;
                         break;
                 // SP
-                case 0x1A:
+                case 0x1a:
                         o = &p->sp;
                         break;
                 // IP
-                case 0x1B:
+                case 0x1b:
                         o = &p->ip;
                         break;
                 default: break;
@@ -244,8 +244,11 @@ static void step(struct cpu *p) {
         u8 o = 0;
         u16 *d = NULL, *s = NULL, w = 0;
         u16 wc = 0;
-        unsigned int start_cyc = p->cycles;
-        struct timespec slp = {0};
+        u32 start_cyc = p->cycles;
+        struct timespec slp = {
+                .tv_sec = 0,
+                .tv_nsec = 0
+        };
 
         disassemble(p->mem, p->ip, out);
         puts(out);
@@ -429,22 +432,22 @@ int main(int argc, char **argv) {
         load(&p, i_fn);
         
         // Add floppy
-        // MID: 0x32BA
-        // HID: 0x236E
+        // MID: 0x32ba
+        // HID: 0x236e
         // _init = floppy_init()
         // _handle_interrupt = floppy_handle_interrupt(u16)
         add_device(&p, floppy_init, floppy_handle_interrupt);
 
         // Add monitor
-        // MID: 0xFF21
-        // HID: 0xBEBA
+        // MID: 0xff21
+        // HID: 0xbeba
         // _init = monitor_init()
         // _handle_interrupt = monitor_handle_interrupt(u16)
         add_device(&p, monitor_init, monitor_handle_interrupt);
 
-        bool run = FALSE;
-        int c = 0;
-        unsigned int w1 = 0, w2 = 0;
+        u32 run = 0;
+        u8 c = 0;
+        u32 w1 = 0, w2 = 0;
         do {
                 if(p.sp < STACK_START-STACK_LIMIT-1) {
                         error("STACK_LIMIT(%04X) reached", STACK_LIMIT);
@@ -468,7 +471,7 @@ int main(int argc, char **argv) {
                         printf("([0x%04X] = %04X) -> %04X\n", w1, p.mem[w1], w2);
                         p.mem[w1] = w2;
                 } else if(c == 'r') {
-                        run = TRUE;
+                        run = 1;
                 }
         } while(p.mem[p.ip]);
 
