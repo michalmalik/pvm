@@ -93,34 +93,52 @@ See examples directory.
 
 Currently, there's no limit for defines for a single file. 
 
-###### data.asm
+##### test.asm
+
 ```
-JMP start
+#define CONST_A		0xAAAA
+#define CONST_B		0xBBBB
 
-#define MEM_ADDR 	0x1000
+STO A, CONST_A
+STO B, CONST_B
 
-:start
+#define CONST_C		0xCCCC
 
-STO [MEM_ADDR],0xF00D
-PUSH [MEM_ADDR]
+STO C, CONST_C
 ```
 
 ##### include 
 
-###### data.asm
+###### c.asm
 ```
-.const_A        DAT     0x1000
+#define C_ASM	0xCCCC
 ```
 
-###### test.asm
+###### b.asm
+```
+#include "c.asm"
+#define B_ASM	0xBBBB
+
+:return
+	STO A, A_ASM		; undefined
+	STO C, C_ASM
+	RET
+```
+
+###### a.asm
 ```
 JMP start
 
-#include "data.asm"
+#include "b.asm"
+#define A_ASM	0xAAAA
 
 :start
 
-STO A,const_A
-STO B,[A]
-STO [B],0xF00D
+; All defines are available
+
+STO A, A_ASM
+STO B, B_ASM
+STO C, C_ASM
+
+JTR return
 ```
