@@ -95,7 +95,7 @@ Currently, there's no limit for defines for a single file.
 
 ##### test.asm
 
-```asm
+```nasm
 #define CONST_A		0xAAAA
 #define CONST_B		0xBBBB
 
