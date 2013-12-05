@@ -112,6 +112,12 @@ STO C, CONST_C
 ###### c.asm
 ```
 #define C_ASM	0xCCCC
+
+:C_return
+	STO A, A_ASM		; undefined		
+	STO B, B_ASM		; undefined
+	STO C, C_ASM
+	RET
 ```
 
 ###### b.asm
@@ -119,8 +125,9 @@ STO C, CONST_C
 #include "c.asm"
 #define B_ASM	0xBBBB
 
-:return
+:B_return
 	STO A, A_ASM		; undefined
+	STO B, B_ASM
 	STO C, C_ASM
 	RET
 ```
@@ -140,5 +147,6 @@ STO A, A_ASM
 STO B, B_ASM
 STO C, C_ASM
 
-JTR return
+JTR B_return
+JTR C_return
 ```
