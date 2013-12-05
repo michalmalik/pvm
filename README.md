@@ -110,7 +110,7 @@ STO C, CONST_C
 ##### include 
 
 ###### c.asm
-```asm
+```nasm
 #define C_ASM	0xCCCC
 
 :C_return
@@ -121,7 +121,7 @@ STO C, CONST_C
 ```
 
 ###### b.asm
-```asm
+```nasm
 #include "c.asm"
 #define B_ASM	0xBBBB
 
@@ -133,7 +133,7 @@ STO C, CONST_C
 ```
 
 ###### a.asm
-```asm
+```nasm
 JMP start
 
 #include "b.asm"
