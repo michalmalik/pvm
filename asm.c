@@ -114,7 +114,7 @@ enum {
 
 #define LAST_TOKEN	tEOF
 
-static void free_node(struct Node *head);
+static void free_node(struct Node **head);
 static void free_memory();
 
 static void die(const char *format, ...) {
@@ -127,7 +127,6 @@ static void die(const char *format, ...) {
 
 	puts(buf);
 
-	free_node(cf->defines);
 	free_memory();
 	exit(1);
 }
@@ -145,7 +144,6 @@ static void error(const char *format, ...) {
 
 	puts(buf_1);
 
-	free_node(cf->defines);
 	free_memory();
 	exit(1);
 }
@@ -161,7 +159,8 @@ static void *scalloc(size_t size) {
 }	
 
 // DRY
-#define NEW_NODE	(struct Node *)scalloc(sizeof(struct Node))
+#define NEW_NODE		(struct Node *)scalloc(sizeof(struct Node))
+#define DEFINE_BLOCK(a) 	a = (struct define *)node->block
 
 static void add_file(const u32 id, FILE *fp) {
 	struct Node *node = NEW_NODE;
@@ -244,12 +243,12 @@ static void fix_symbol(const char *name, u16 addr, u16 const_val) {
 	fixes = node;
 }
 
-static void add_define(const char *name, u16 value) {
+static void add_define(struct Node **list, const char *name, u16 value) {
 	struct Node *node = NULL;
 	struct define *d = NULL;
 
-	for(node = cf->defines; node; node = node->next) {
-		d = (struct define *)node->block;
+	for(node = *list; node; node = node->next) {
+		DEFINE_BLOCK(d);
 		if(!strcmp(d->name, name))
 			error("define \"%s\" already defined", name);
 	}
@@ -260,20 +259,20 @@ static void add_define(const char *name, u16 value) {
 	strcpy(d->name, name);
 	d->value = value;
 
-	node->next = cf->defines;
+	node->next = *list;
 	node->block = d;
-	cf->defines = node;
+	*list = node;
 }
 
 // DRY
-#define CMP_NODE_SYMBOL()	strcmp(((struct symbol *)node->block)->name, name)
-#define CMP_NODE_DEFINE()	strcmp(((struct define *)node->block)->name, name)
+#define CMP_NODE_SYMBOL()	!strcmp(((struct symbol *)node->block)->name, name)
+#define CMP_NODE_DEFINE()	!strcmp(((struct define *)node->block)->name, name)
 
 static struct symbol *find_symbol(const char *name) {
 	struct Node *node = NULL;
 
 	for(node = symbols; node; node = node->next) {
-		if(!CMP_NODE_SYMBOL())
+		if(CMP_NODE_SYMBOL())
 			return node->block;
 	}
 
@@ -284,7 +283,7 @@ static struct define *find_define(const char *name) {
 	struct Node *node = NULL;
 
 	for(node = cf->defines; node; node = node->next) {
-		if(!CMP_NODE_DEFINE()) 
+		if(CMP_NODE_DEFINE()) 
 			return node->block;
 	}
 
@@ -296,12 +295,12 @@ static u32 is_defined(const char *name) {
 	struct Node *node = NULL;
 
 	for(node = symbols; node; node = node->next) {
-		if(!CMP_NODE_SYMBOL())
+		if(CMP_NODE_SYMBOL())
 			return 1;
 	}
 
 	for(node = cf->defines; node; node = node->next) {
-		if(!CMP_NODE_DEFINE())
+		if(CMP_NODE_DEFINE())
 			return 1;
 	}
 
@@ -349,7 +348,7 @@ next_line:
 		cf->lineptr = cf->linebuffer;
 		cf->linenumber++;
 
-		newline = 0;
+		newline = 1;
 	}
 
 	if(*cf->lineptr == '\n' || *cf->lineptr == '\r') {
@@ -639,18 +638,25 @@ static void assemble_i(int inst, struct operand d, struct operand s) {
 	u16 o = inst - tSTO;
 	MEM[IP++]._w = (u16)(o|(s.o<<6)|(d.o<<11));
 
-	if(d.w != -1) MEM[IP++]._w = d.w & 0xffff;		
-	if(s.w != -1) MEM[IP++]._w = s.w & 0xffff;
+	if(d.w != -1)
+		MEM[IP++]._w = d.w & 0xffff;		
+	if(s.w != -1)
+		MEM[IP++]._w = s.w & 0xffff;
 }
 
-#define ZERO_OPR_ST(a)	(a).o = 0; (a).w = -1
+#define PREPROC(a)		!strcasecmp(cf->tokenstr, (a))
+#define ZERO_OPR_ST(a)		(a).o = 0; (a).w = -1
 
 static void assemble() {
 	struct operand d, s;
 	u32 t;
 	u16 b = 0;
-	struct file_asm tf = {0};
 	size_t i;
+
+	struct Node *node = NULL;
+	struct Node *tdefines = NULL;
+	struct define *def = NULL;
+	struct file_asm tf = {0};
 
 	for(;;) {
 		next();
@@ -660,7 +666,7 @@ again:
 		t = cf->token;
 
 		switch(t) {
-			case tEOF: goto done;
+			case tEOF: return;
 			case tEOL: {
 				next();
 				goto again;
@@ -670,24 +676,41 @@ again:
 				add_symbol(cf->tokenstr, IP, IP);
 			} break;
 			case tHASH: {
+				char buffer[128];
+
 				expect(tSTR);
-				if(!strcasecmp(cf->tokenstr, "include")) {			
+				if(PREPROC("include")) {			
 					expect(tQSTR);
+					strcpy(buffer, cf->tokenstr);
 
-					char buf[64] = {0};
-					strcpy(buf, cf->tokenstr);
-
+					// Store the previous file_asm structure
 					tf = *cf;
-					init_asm(buf);
+
+					init_asm(buffer);
 					assemble();
+
+					// Copy cf->defines to tdefines
+					for(node = cf->defines; node; node = node->next) {
+						DEFINE_BLOCK(def);
+						add_define(&tdefines, def->name, def->value);
+					}
+					free_node(&cf->defines);
+
+					// Load the previous file_asm structure
 					*cf = tf;
-				} else if(!strcasecmp(cf->tokenstr, "define")) {
-					char name[128] = {0};
+
+					// Copy tdefines back to cf->defines
+					for(node = tdefines; node; node = node->next) {
+						DEFINE_BLOCK(def);
+						add_define(&cf->defines, def->name, def->value);
+					}
+					free_node(&tdefines);
+				} else if(PREPROC("define")) {
 					expect(tSTR);
-					strcpy(name, cf->tokenstr);
+					strcpy(buffer, cf->tokenstr);
 					expect(tNUM);
-					add_define(name, cf->tokennum);
-				}
+					add_define(&cf->defines, buffer, cf->tokennum);
+				}		
 			} break;
 			case tDOT: {
 				char sym_name[128] = {0};
@@ -784,8 +807,6 @@ again:
 			} break;
 		}
 	}
-done:
-	free_node(cf->defines);
 }
 
 static void output(const char *fn) {
@@ -803,27 +824,27 @@ static void output(const char *fn) {
 	fclose(fp);
 }
 
-static void free_node(struct Node *head) {
-	if(!head) return;
+static void free_node(struct Node **head) {
+	if(!(*head)) return;
 
-	struct Node *tmp = NULL;
-	while(head) {
-		tmp = head;
-		head = head->next;
+	struct Node *node = *head, *tmp = NULL;
+	while(node) {
+		tmp = node;
+		node = node->next;
 		if(tmp->block) free(tmp->block);
 		free(tmp);
 	}
 
-	free(head);
-	head = NULL;
+	free(node);
+	*head = NULL;
 }
 
 static void free_memory() {
 	struct Node *node = NULL;
 	struct file_id *tmp = NULL;
 
-	free_node(symbols);
-	free_node(fixes);
+	free_node(&symbols);
+	free_node(&fixes);
 
 	// Free all files
 	for(node = files; node; node = node->next) {
@@ -831,7 +852,8 @@ static void free_memory() {
 		fclose(tmp->fp);
 	}
 	
-	free_node(files);
+	free_node(&files);
+	free_node(&cf->defines);
 
 	// Free current file structure
 	free(cf);
@@ -851,7 +873,6 @@ int main(int argc, char **argv) {
 
 	// Init file_asm structure for the main file
 	cf = (struct file_asm *)scalloc(sizeof(struct file_asm));
-
 	init_asm(i_fn);
 
 	assemble();
