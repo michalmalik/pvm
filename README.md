@@ -95,7 +95,7 @@ Currently, there's no limit for defines for a single file.
 
 ##### test.asm
 
-```
+```asm
 #define CONST_A		0xAAAA
 #define CONST_B		0xBBBB
 
@@ -110,7 +110,7 @@ STO C, CONST_C
 ##### include 
 
 ###### c.asm
-```
+```asm
 #define C_ASM	0xCCCC
 
 :C_return
@@ -121,7 +121,7 @@ STO C, CONST_C
 ```
 
 ###### b.asm
-```
+```asm
 #include "c.asm"
 #define B_ASM	0xBBBB
 
@@ -133,7 +133,7 @@ STO C, CONST_C
 ```
 
 ###### a.asm
-```
+```asm
 JMP start
 
 #include "b.asm"
