@@ -109,7 +109,7 @@ static void free_devices(struct cpu *p) {
         }
         
         free(head);
-        head = NULL;
+        p->devices = NULL;
 }
 
 static void memory_dmp(struct cpu *p, const char *fn) {
@@ -142,7 +142,7 @@ static void debug(struct cpu *p) {
         printf("%2s: 0x%04X\n", "IA", p->ia);
         printf("%2s: 0x%04X\n", "SP", p->sp);
         printf("%2s: 0x%04X\n", "IP", p->ip);
-        printf("%2s: 0x%04X\n", "OF", p->of);
+        printf("%2s: 0x%04X\n", "OV", p->ov);
         printf("%2s: %d\n", "CPU CYCLES", p->cycles);
         printf("\n");
 
@@ -211,6 +211,11 @@ static u16 *getopr(struct cpu *p, u8 b, u16 *w) {
                 case 0x1b:
                         o = &p->ip;
                         break;
+                // OV
+                case 0x1c:
+                        o = &p->ov;
+                        break;
+                        
                 default: break;
         }
         return o;
@@ -233,7 +238,7 @@ static int jump(struct cpu *p) {
                 if(USINGNW(d)) wc++;
                 if(USINGNW(s)) wc++;
                 op = *(p->mem+p->ip+wc);
-        } while(oldo >= IFE && oldo <= IFLE);
+        } while(oldo >= IFE && oldo <= IFB);
 
         return wc;
 }
@@ -266,17 +271,25 @@ static void step(struct cpu *p) {
                 case STO: *d = *s; break;
                 // ADD
                 case ADD: {
-                        if(*s+*d>0xFFFF) p->of = 1; 
+                        if(*s+*d > 0xffff) 
+                                p->ov = *s + *d;
+
                         *d = (*s+*d); 
                 } break;
                 // SUB
-                case SUB: *d = (*d-*s); break;
+                case SUB: {
+                        signed short cc = (signed short)(*d-*s);
+                        if(cc < 0)
+                                *d = 0xffff-*s+1;
+                        else
+                                *d -= *s;
+                } break;
                 // MUL
                 case MUL: *d = *s*(*d); break;
                 // DIV
                 case DIV: {
+                        p->ov = *d  % *s;
                         *d = *d/(*s);
-                        p->r[ rD ] = (*d)%(*s);
                         p->cycles++;
                 } break;
                 // MOD
@@ -307,6 +320,20 @@ static void step(struct cpu *p) {
                 case SHR: {
                         *d = (*d)>>(*s);
                 } break;
+                // MLS
+                case MLS: {
+                        *d = (s16)*d * (s16)*s;
+                } break;
+                // DVS
+                case DVS: {
+                        p->ov = (s16)*d % (s16)*s;
+                        *d = (s16)*d / (s16)*s;
+                        p->cycles++;
+                } break;
+                // MDS
+                case MDS: {
+                        *d = (s16)*d % (s16)*s;
+                } break;
                 // IFE
                 case IFE: {
                         if(*d != *s) p->ip += wc;
@@ -323,14 +350,14 @@ static void step(struct cpu *p) {
                 case IFL: {
                         if(*d >= *s) p->ip += wc;
                 } break;
-                // IFGE
-                case IFGE: {
-                        if(*d < *s) p->ip += wc; 
+                // IFA
+                case IFA: {
+                        if((s16)*d <= (s16)*s) p->ip += wc; 
                 } break;
-                // IFLE
-                case IFLE: {
-                        if(*d > *s) p->ip += wc;
-                }
+                // IFB
+                case IFB: {
+                        if((s16)*d >= (s16)*s) p->ip += wc;
+                } break;
                 // JMP
                 case JMP: {
                         p->ip = *d;
