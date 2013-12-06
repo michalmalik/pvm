@@ -7,7 +7,8 @@
 static const char *opc[] = {
 	"STO", "ADD", "SUB", "MUL", "DIV", "MOD",
 	"NOT", "AND", "OR", "XOR", "SHL", "SHR",
-	"IFE", "IFN", "IFG", "IFL", "IFGE", "IFLE", 
+	"MLS", "DVS", "MDS",
+	"IFE", "IFN", "IFG", "IFL", "IFA", "IFB", 
 	"JMP", "JTR", "PUSH", "POP", "RET", "RETI",
 	"IAR", "INT", "HWI", "HWQ", "HWN"
 };
@@ -42,6 +43,9 @@ static void dis_opr(u16 *mem, u16 b, u16 ip, char *out) {
 	// IP
 	} else if(b == 0x1b) {
 		sprintf(out+strlen(out), "IP");
+	// OV
+	} else if(b == 0x1c) {
+		sprintf(out+strlen(out), "OV");
 	}
 }
 

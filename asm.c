@@ -86,11 +86,12 @@ static struct Node *fixes;
 
 static const char *tn[] = {
 	"A", "B", "C", "D", "X", "Y", "Z", "J",
-	"SP", "IP", "IA",
+	"SP", "IP", "IA", "OV",
 	"STO",
 	"ADD", "SUB", "MUL", "DIV", "MOD",
 	"NOT", "AND", "OR", "XOR", "SHL", "SHR",
-	"IFE", "IFN", "IFG", "IFL", "IFGE", "IFLE", "JMP", "JTR",
+	"MLS", "DVS", "MDS",
+	"IFE", "IFN", "IFG", "IFL", "IFA", "IFB", "JMP", "JTR",
 	"PUSH", "POP", "RET", "RETI", "IAR", "INT",
 	"HWI", "HWQ", "HWN",
 	"DAT", 
@@ -100,11 +101,12 @@ static const char *tn[] = {
 
 enum {
 	tA, tB, tC, tD, tX, tY, tZ, tJ,
-	tSP, tIP, tIA,
+	tSP, tIP, tIA, tOV,
 	tSTO, 
 	tADD, tSUB, tMUL, tDIV, tMOD,
 	tNOT, tAND, tOR, tXOR, tSHL, tSHR,
-	tIFE, tIFN, tIFG, tIFL, tIFGE, tIFLE, tJMP, tJTR,
+	tMLS, tDVS, tMDS,
+	tIFE, tIFN, tIFG, tIFL, tIFA, tIFB, tJMP, tJTR,
 	tPUSH, tPOP, tRET, tRETI, tIAR, tINT,
 	tHWI, tHWQ, tHWN,
 	tDAT,
@@ -422,9 +424,10 @@ next_line:
 					}
 				}
 				return tSTR;
-			} else if(isdigit(c)) {
+			// Handle both signed and unsigned integers
+			} else if(isdigit(c) || c == '-') {
 				cf->lineptr--;
-				cf->tokennum = strtoul(cf->lineptr, &cf->lineptr, 0);
+				cf->tokennum = strtol(cf->lineptr, &cf->lineptr, 0);
 				return tNUM;				
 			}
 		} break;
@@ -496,6 +499,11 @@ static struct operand assemble_o() {
 		// IP
 		case tIP: {
 			o = 0x1b;
+		} break;
+
+		// OV
+		case tOV: {
+			o = 0x1c;
 		} break;
 
 		// nextw
@@ -755,8 +763,9 @@ again:
 			case tADD: case tSUB: case tMUL: case tDIV:
 			case tMOD: case tAND: case tOR: case tXOR:
 			case tSHL: case tSHR: 
+			case tMLS: case tDVS: case tMDS:
 			case tIFE: case tIFN: case tIFG: case tIFL:
-			case tIFGE: case tIFLE: 
+			case tIFA: case tIFB: 
 			{
 				d = assemble_o();
 				expect(tCOMMA);				
