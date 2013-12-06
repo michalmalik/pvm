@@ -2,8 +2,7 @@
 * **16-bit** CPU, 16-bit words
 * experimental **1 Mhz** clock 
 * **0x8000 words**
-* **8 16-bit general purpose registers** (A,B,C,D,X,Y,Z,J), **stack pointer** (SP), **instruction pointer** (IP), **interrupt address** register (IA)
-* **OF** (overflow) flag
+* **8 16-bit general purpose registers** (A,B,C,D,X,Y,Z,J), **stack pointer** (SP), **instruction pointer** (IP), **interrupt address** register (IA), **overflow** (OV) register
 * **0x2000 words** global stack size, start `0x7FFF`, goes down
 * instruction takes maximum **6 bytes** 
 
@@ -28,45 +27,49 @@
 | 0x19		| [nextw]          | value at next word                     |
 | 0x1A		| SP               | literal value of stack pointer         |
 | 0x1B		| IP               | literal value of instruction pointer   |
+| 0x1C		| OV 		   | literal value of overflow register     |
 
 ### Opcodes for operation operand (instruction set)
 
 | OP     | INS              | description                              		     | cycles  |
 | :----: | ---------------- | ------------------------------------------------------ | :-----: | 
-| 0x00   | STO A,B          | A = B                               		     | 1-3     |
-| 0x01   | ADD A,B          | A = A+B ; sets OF flag              		     | 1-3     |               
-| 0x02   | SUB A,B          | A = A-B ; sets OF flag              		     | 1-3     |
-| 0x03   | MUL A,B          | A = A*B ; sets OF flag              		     | 1-3     |
-| 0x04   | DIV A,B          | A = A/B ; D = A%B                   		     | 2-5     |
-| 0x05   | MOD A,B          | A = A%B                   	  		     | 1-3     |
-| 0x06   | NOT A            | A = ~(A)                            		     | 1-2     |
-| 0x07   | AND A,B          | A = A&B                             		     | 1-3     |
-| 0x08   | OR A,B           | A = A OR B                          		     | 1-3     |
-| 0x09   | XOR A,B          | A = A^B                             		     | 1-3     |
-| 0x0A   | SHL A,B          | A = A << B                          		     | 1-3     |
-| 0x0B   | SHR A,B          | A = A >> B                          		     | 1-3     |
-| 0x0C   | IFE A,B          | execute next instruction if A==B    		     | 1-3     |
-| 0x0D   | IFN A,B          | if A != B            		  		     | 1-3     |
-| 0x0E   | IFG A,B          | if A > B            		  		     | 1-3     |
-| 0x0F   | IFL A,B          | if A < B           		   	  	     | 1-3     |
-| 0x10   | IFGE A,B         | if A >= B                             		     | 1-3     |
-| 0x11   | IFLE A,B         | if A <= B                             		     | 1-3     |
-| 0x12   | JMP label        | jump to label            		  		     | 2       |
-| 0x13   | JTR label        | push IP of next instruction on stack, jump to label    | 3       |
-| 0x14   | PUSH A           | push A on stack, SP--	  		     	     | 1-2     |
-| 0x15   | POP A            | pops value from stack to A, SP++         		     | 1-2     |
-| 0x16   | RET              | pops value from stack to IP                 	     | 1       |
-| 0x17   | RETI             | pops value from stack to IP              		     | 1       |
+| 0x00   | STO A,B          | A = B                               		     | x       |
+| 0x01   | ADD A,B          | A = A+B ; sets OF flag              		     | x       | 
+| 0x02   | SUB A,B          | A = A-B ; sets OF flag              		     | x       |
+| 0x03   | MUL A,B          | A = A*B ; sets OF flag              		     | x       |
+| 0x04   | DIV A,B          | A = A/B ; OV = A%B                   		     | x       |
+| 0x05   | MOD A,B          | A = A%B                   	  		     | x       |
+| 0x06   | NOT A            | A = ~(A)                            		     | x       |
+| 0x07   | AND A,B          | A = A&B                             		     | x       |
+| 0x08   | OR A,B           | A = A OR B                          		     | x       |
+| 0x09   | XOR A,B          | A = A^B                             		     | x       |
+| 0x0A   | SHL A,B          | A = A << B                          		     | x       |
+| 0x0B   | SHR A,B          | A = A >> B                          		     | x       |
+| 0x0C   | MLS A,B          | signed A = A*B 					     | x       |
+| 0x0D   | DVS A,B          | signed A = A/B; signed OV = A%B 			     | x       |
+| 0x0E   | MDS A,B          | signed A = A%B                                         | x       |
+| 0x0F   | IFE A,B          | execute next instruction if A == B    		     | x       |
+| 0x10   | IFN A,B          | if A != B            		  		     | x       |
+| 0x11   | IFG A,B          | if A > B            		  		     | x       |
+| 0x12   | IFL A,B          | if A < B           		   	  	     | x       |
+| 0x13   | IFA A,B          | signed if A > B                                        | x       |
+| 0x14   | IFB A,B          | signed if A < B                                        | x       |
+| 0x15   | JMP label        | jump to label            		  		     | x       |
+| 0x16   | JTR label        | push IP of next instruction on stack, jump to label    | x       |
+| 0x17   | PUSH A           | push A on stack, SP--	  		     	     | x       |
+| 0x18   | POP A            | pops value from stack to A, SP++         		     | x       |
+| 0x19   | RET              | pops value from stack to IP                 	     | x       |
+| 0x1A   | RETI             | pops value from stack to IP              		     | x       |
 
 #### Interrupt instructions
 ------------------------------------------------------------------------------------------------
 | OP     | INS              | description                                            | cycles  |
 | :----: | ---------------- | ------------------------------------------------------ | :-----: |
-| 0x18   | IAR A            | set IA to A                                            | 2       |
-| 0x19   | INT A            | jump to IA, with the message A; software interrupt     | 1-2     |
-| 0x1A   | HWI A            | sends IA to hardware A                                 | 1-2     |
-| 0x1B   | HWQ A            | set rA to manufacter id of A and rB to hw id of A      | 1-2     |
-| 0x1C   | HWN A            | set A to number of registered devices                  | 1-2     |
+| 0x1B   | IAR A            | set IA to A                                            | x       |
+| 0x1C   | INT A            | jump to IA, with the message A; software interrupt     | x       | 
+| 0x1D   | HWI A            | sends IA to hardware A                                 | x       |
+| 0x1E   | HWQ A            | set rA to manufacter id of A and rB to hw id of A      | x       |
+| 0x1F   | HWN A            | set A to number of registered devices                  | x       |
 
 #### Devices
 
