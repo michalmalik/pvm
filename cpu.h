@@ -13,6 +13,7 @@
 
 typedef uint8_t u8;
 typedef uint16_t u16;
+typedef int16_t s16;
 typedef uint32_t u32;
 
 enum _registers {
@@ -23,15 +24,15 @@ enum _instructions {
         STO,
         ADD, SUB, MUL, DIV, MOD,
         NOT, AND, OR, XOR, SHL, SHR,
-        IFE, IFN, IFG, IFL, IFGE, IFLE,
+        MULS, DIVS, MODS,
+        IFE, IFN, IFG, IFL, IFA, IFB,
         JMP, JTR, PUSH, POP, RET, RETI,
         IAR, INT, HWI, HWQ, HWN
 };
 
 struct cpu {
         u16 r[8];
-        u16 sp, ip, ia;
-        u8 of:1;
+        u16 sp, ip, ia, o;
         u16 mem[0x8000];
         u32 cycles;
 

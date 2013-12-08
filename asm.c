@@ -86,11 +86,11 @@ static struct Node *fixes;
 
 static const char *tn[] = {
 	"A", "B", "C", "D", "X", "Y", "Z", "J",
-	"SP", "IP", "IA", "OV",
+	"SP", "IP", "IA", "O",
 	"STO",
 	"ADD", "SUB", "MUL", "DIV", "MOD",
 	"NOT", "AND", "OR", "XOR", "SHL", "SHR",
-	"MLS", "DVS", "MDS",
+	"MULS", "DIVS", "MODS",
 	"IFE", "IFN", "IFG", "IFL", "IFA", "IFB", "JMP", "JTR",
 	"PUSH", "POP", "RET", "RETI", "IAR", "INT",
 	"HWI", "HWQ", "HWN",
@@ -101,11 +101,11 @@ static const char *tn[] = {
 
 enum {
 	tA, tB, tC, tD, tX, tY, tZ, tJ,
-	tSP, tIP, tIA, tOV,
+	tSP, tIP, tIA, tO,
 	tSTO, 
 	tADD, tSUB, tMUL, tDIV, tMOD,
 	tNOT, tAND, tOR, tXOR, tSHL, tSHR,
-	tMLS, tDVS, tMDS,
+	tMULS, tDIVS, tMODS,
 	tIFE, tIFN, tIFG, tIFL, tIFA, tIFB, tJMP, tJTR,
 	tPUSH, tPOP, tRET, tRETI, tIAR, tINT,
 	tHWI, tHWQ, tHWN,
@@ -160,7 +160,6 @@ static void *scalloc(size_t size) {
 	return block;
 }	
 
-// DRY
 #define NEW_NODE		(struct Node *)scalloc(sizeof(struct Node))
 #define DEFINE_BLOCK(a) 	a = (struct define *)node->block
 
@@ -266,7 +265,6 @@ static void add_define(struct Node **list, const char *name, u16 value) {
 	*list = node;
 }
 
-// DRY
 #define CMP_NODE_SYMBOL()	!strcmp(((struct symbol *)node->block)->name, name)
 #define CMP_NODE_DEFINE()	!strcmp(((struct define *)node->block)->name, name)
 
@@ -501,8 +499,8 @@ static struct operand assemble_o() {
 			o = 0x1b;
 		} break;
 
-		// OV
-		case tOV: {
+		// O
+		case tO: {
 			o = 0x1c;
 		} break;
 
@@ -763,7 +761,7 @@ again:
 			case tADD: case tSUB: case tMUL: case tDIV:
 			case tMOD: case tAND: case tOR: case tXOR:
 			case tSHL: case tSHR: 
-			case tMLS: case tDVS: case tMDS:
+			case tMULS: case tDIVS: case tMODS:
 			case tIFE: case tIFN: case tIFG: case tIFL:
 			case tIFA: case tIFB: 
 			{

@@ -9,7 +9,6 @@
 // 1 Mhz in nanoseconds
 #define CPU_TICK                1000           
 #define STACK_START             0x8000
-#define STACK_LIMIT             0x2000
 
 extern void disassemble(u16 *mem, u16 ip, char *out);
 
@@ -142,7 +141,7 @@ static void debug(struct cpu *p) {
         printf("%2s: 0x%04X\n", "IA", p->ia);
         printf("%2s: 0x%04X\n", "SP", p->sp);
         printf("%2s: 0x%04X\n", "IP", p->ip);
-        printf("%2s: 0x%04X\n", "OV", p->ov);
+        printf("%2s: 0x%04X\n", "OV", p->o);
         printf("%2s: %d\n", "CPU CYCLES", p->cycles);
         printf("\n");
 
@@ -171,12 +170,14 @@ static void load(struct cpu *p, const char *fn) {
         p->sp = STACK_START;
 }
 
+#define ADD_CYCLES(p, n)    (p)->cycles += n
+
 static u16 *getopr(struct cpu *p, u8 b, u16 *w) {
         u16 *o = NULL;
 
         if(USINGNW(b)) {
                 w = p->mem+(p->ip++);
-                p->cycles++;
+                ADD_CYCLES(p, 1);
         }
 
         switch(b) {
@@ -213,9 +214,9 @@ static u16 *getopr(struct cpu *p, u8 b, u16 *w) {
                         break;
                 // OV
                 case 0x1c:
-                        o = &p->ov;
+                        o = &p->o;
                         break;
-                        
+
                 default: break;
         }
         return o;
@@ -228,6 +229,8 @@ static int jump(struct cpu *p) {
         u16 op = *(p->mem+p->ip);
 
         do {
+                ADD_CYCLES(p, 1);
+
                 wc++;
                 o = OPO(op);
                 d = OPD(op);
@@ -258,8 +261,6 @@ static void step(struct cpu *p) {
         disassemble(p->mem, p->ip, out);
         puts(out);
 
-        p->cycles++;
-
         op = p->mem[p->ip++];
         o = OPO(op);
         d = getopr(p, OPD(op), &w);
@@ -272,25 +273,29 @@ static void step(struct cpu *p) {
                 // ADD
                 case ADD: {
                         if(*s+*d > 0xffff) 
-                                p->ov = *s + *d;
+                                p->o = 1;
+                        else
+                                p->o = 0;
 
                         *d = (*s+*d); 
                 } break;
                 // SUB
                 case SUB: {
                         signed short cc = (signed short)(*d-*s);
-                        if(cc < 0)
+                        if(cc < 0) {
                                 *d = 0xffff-*s+1;
-                        else
+                                p->o = 0xffff;
+                        } else {
                                 *d -= *s;
+                                p->o = 0;
+                        }
                 } break;
                 // MUL
                 case MUL: *d = *s*(*d); break;
                 // DIV
                 case DIV: {
-                        p->ov = *d  % *s;
+                        p->o = *d  % *s;
                         *d = *d/(*s);
-                        p->cycles++;
                 } break;
                 // MOD
                 case MOD: {
@@ -320,18 +325,17 @@ static void step(struct cpu *p) {
                 case SHR: {
                         *d = (*d)>>(*s);
                 } break;
-                // MLS
-                case MLS: {
+                // MULS
+                case MULS: {
                         *d = (s16)*d * (s16)*s;
                 } break;
-                // DVS
-                case DVS: {
-                        p->ov = (s16)*d % (s16)*s;
+                // DIVS
+                case DIVS: {
+                        p->o = (s16)*d % (s16)*s;
                         *d = (s16)*d / (s16)*s;
-                        p->cycles++;
                 } break;
-                // MDS
-                case MDS: {
+                // MODS
+                case MODS: {
                         *d = (s16)*d % (s16)*s;
                 } break;
                 // IFE
@@ -366,7 +370,6 @@ static void step(struct cpu *p) {
                 case JTR: {
                         // push IP on stack
                         p->mem[--p->sp] = p->ip;
-                        p->cycles++;
                         // jump
                         p->ip = *d; 
                 } break;
@@ -476,10 +479,6 @@ int main(int argc, char **argv) {
         u8 c = 0;
         u32 w1 = 0, w2 = 0;
         do {
-                if(p.sp < STACK_START-STACK_LIMIT-1) {
-                        error("STACK_LIMIT(%04X) reached", STACK_LIMIT);
-                }
-
                 if(!run) {
                         c = getchar();
                 } else {
