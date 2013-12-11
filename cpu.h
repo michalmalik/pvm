@@ -39,6 +39,7 @@ struct cpu {
         // Linked list of devices
         struct device *devices;
 
+        u16 current_interrupt;
         u32 interrupt_enabled;
 };
 
@@ -58,5 +59,6 @@ struct device {
 // We want to export these to the devices
 void error(const char *format, ...);
 void *scalloc(size_t size);
+void trigger_interrupt(struct cpu *p, u16 hwi);
 
 #endif

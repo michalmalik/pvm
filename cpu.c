@@ -135,11 +135,16 @@ void *wait_for_interrupt(void *proc) {
         struct cpu *p = (struct cpu *)proc;
         while(1) {
                 if(p->interrupt_enabled) {
-
+                        printf("CPU received an interrupt 0x%04x\n", p->current_interrupt);
                         p->interrupt_enabled = 0;
                 }
-                sleep(1);
+                usleep(1);
         }
+}
+
+void trigger_interrupt(struct cpu *p, u16 hwi) {
+        p->interrupt_enabled = 1;
+        p->current_interrupt = hwi;
 }
 
 static void memory_dmp(struct cpu *p, const char *fn) {
@@ -199,6 +204,9 @@ static void load(struct cpu *p, const char *fn) {
         fclose(fp);
 
         p->sp = STACK_START;
+
+        pthread_t tid;
+        pthread_create(&tid, NULL, &wait_for_interrupt, (void *)p);
 }
 
 #define ADD_CYCLES(p, n)    (p)->cycles += n
