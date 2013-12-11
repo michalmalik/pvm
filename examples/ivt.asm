@@ -1,34 +1,73 @@
-#define IVT_SYSCALL		0xAA
-#define IVT_SYSCALL_READ	1
-#define IVT_SYSCALL_WRITE	2
-#define IVT_SYSCALL_EXIT	3
+#define IVT_ADDRESS	0x500
+#define IVT_SYSCALL	0x80
+.ivt_size 	DAT	0
 
-:handle_ivt_interrupt
-	; check what type of IVT interrupt
-	; to call
-	; just syscall for the moment
-	
-	; B must be set to call syscall
-	; routines
-	IFE A,IVT_SYSCALL
-		JTR handle_ivt_interrupt_syscall
+; IN
+; 	+1 Interrupt handler
+; 	+2 Offset
+; OUT
+;	None
+:register_irq
+	STO Z,SP
 
+	STO Y,[Z+1]		; interrupt handler
+	STO C,[Z+2]		; interrupt offset
+	STO [IVT_ADDRESS+C],Y	; save the interrupt handler
+
+	ADD [ivt_size],1
+
+	STO SP,Z
+	RET
+
+; IN
+;	None
+; OUT
+;	None
+:build_ivt
+	IAR handle_software_interrupt
+
+	PUSH IVT_SYSCALL
+	PUSH handle_ivt_syscall
+	JTR register_irq
+	ADD SP,2
+
+	RET
+
+; IN
+;	A 	IA
+; OUT
+;	None
+:handle_software_interrupt
+	STO Y,[IVT_ADDRESS+A]
+	JTR Y
 	RETI
 
-:handle_ivt_interrupt_syscall	
-	; handle_read
-	; set J to 0xAAAA
-	IFE B,IVT_SYSCALL_READ
-		STO J,0xAAAA
+#define SYSCALL_WRITE_MEM 	0x1
 
-	; handle_write
-	; set J to 0xBBBB
-	IFE B,IVT_SYSCALL_WRITE
-		STO J,0xBBBB
+; System call is fully defined by
+; register B, which defines what
+; type of system call will be called
 
-	; handle_exit
-	; set J to 0xCCCC
-	IFE B,IVT_SYSCALL_EXIT
-		STO J,0xCCCC
+; IN
+; 	B 	syscall type
+; OUT
+; 	None
+:handle_ivt_syscall
+	IFE B,SYSCALL_WRITE_MEM
+		JTR syscall_write_mem
 
+	RET
+
+; IN
+; 	X 	destination address
+; 	C 	value
+; 	D 	count
+; OUT
+; 	None
+:syscall_write_mem
+	PUSH D
+	PUSH C
+	PUSH X
+	JTR write_mem
+	ADD SP,3
 	RET

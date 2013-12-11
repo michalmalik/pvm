@@ -1,5 +1,8 @@
-; +1 Manufacter ID
-; +2 Hardware ID
+; IN
+; 	+1 Manufacter ID
+; 	+2 Hardware ID
+; OUT
+; 	A 	hardware index		
 :find_device
 	STO Z,SP
 
@@ -29,9 +32,9 @@
 		STO SP,Z
 		RET
 
-:find_floppy
-	PUSH 0x236e
-	PUSH 0x32ba
+:find_keyboard
+	PUSH 0x0011
+	PUSH 0xbeed
 	JTR find_device
 	ADD SP,2
 	RET
@@ -39,6 +42,13 @@
 :find_monitor
 	PUSH 0xbeba
 	PUSH 0xff21
+	JTR find_device
+	ADD SP,2
+	RET
+
+:find_floppy
+	PUSH 0x236e
+	PUSH 0x32ba
 	JTR find_device
 	ADD SP,2
 	RET

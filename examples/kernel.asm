@@ -1,29 +1,18 @@
 JMP start
 
-#include "memory.asm"
 #include "devices.asm"
+#include "memory.asm"
 #include "ivt.asm"
 
+:init_kernel
+	JTR build_ivt
+	RET
+
 :start
-	IAR handle_ivt_interrupt
-	; SYSCALL routine is determined
-	; by the register B and the return value
-	; by register J
-	; 1 - read, 	0xAAAA
-	; 2 - write,	0xBBBB
-	; 3 - exit;	0xCCCC
+	JTR init_kernel
 
-	; SYSCALL is called from IVT
-	; by software interrupt 0xAA
-
-	; J should be 0xAAAA
-	STO B,0x1	; read
-	INT 0xAA
-
-	; J should be 0xBBBB
-	STO B,0x2	; write
-	INT 0xAA
-
-	; J should be 0xCCCC
-	STO B,0x3	; exit
-	INT 0xAA
+	STO D,0x8
+	STO C,0xF00D
+	STO X,0x1000
+	STO B,SYSCALL_WRITE_MEM
+	INT IVT_SYSCALL
