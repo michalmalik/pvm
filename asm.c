@@ -177,7 +177,6 @@ static void add_file(const u32 id, FILE *fp) {
 
 static void init_asm(const char *i_fn) {
 	struct file_asm fs = {0};
-	size_t i;
 
 	fs.lineptr = fs.linebuffer;
 	fs.defines = NULL;
@@ -847,6 +846,8 @@ static void free_node(struct Node **head) {
 }
 
 static void free_memory() {
+	if(!cf) return;
+
 	struct Node *node = NULL;
 	struct file_id *tmp = NULL;
 
@@ -889,5 +890,6 @@ int main(int argc, char **argv) {
 	output(o_fn);
 
 	free_memory();
+
 	return 0;
 }
