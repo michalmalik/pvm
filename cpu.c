@@ -3,6 +3,8 @@
 #include <stdarg.h>
 #include <string.h>
 #include <time.h>
+#include <pthread.h>
+#include <unistd.h>
 
 #include "cpu.h"
 
@@ -10,14 +12,20 @@
 #define CPU_TICK                1000           
 #define STACK_START             0x8000
 
+#define PUSH(a)                 p->mem[--p->sp] = a
+#define POP()                   p->mem[p->sp++]
+
 extern void disassemble(u16 *mem, u16 ip, char *out);
 
 // Load init functions for devices
 // Init function always returns the device id
-extern unsigned int floppy_init(struct cpu *p);
+extern u32 keyboard_init(struct cpu *p);
+extern void keyboard_handle_interrupt(u16 hwi);
+
+extern u32 floppy_init(struct cpu *p);
 extern void floppy_handle_interrupt(u16 hwi);
 
-extern unsigned int monitor_init(struct cpu *p);
+extern u32 monitor_init(struct cpu *p);
 extern void monitor_handle_interrupt(u16 hwi);
 
 void error(const char *format, ...) {
@@ -111,6 +119,29 @@ static void free_devices(struct cpu *p) {
         p->devices = NULL;
 }
 
+/*
+        When the device triggers an interrupt,
+        it's sent to the processor. and 
+
+        interrupt_enabled variable is set to 1 in
+        the processor structure.
+
+        wait_for_interrupt function is running in 
+        a thread waiting for interrupt_enabled 
+        to be 1, then executes some block of code and
+        sets interrupt_enabled to 0.
+*/
+void *wait_for_interrupt(void *proc) {
+        struct cpu *p = (struct cpu *)proc;
+        while(1) {
+                if(p->interrupt_enabled) {
+
+                        p->interrupt_enabled = 0;
+                }
+                sleep(1);
+        }
+}
+
 static void memory_dmp(struct cpu *p, const char *fn) {
         FILE *fp = NULL;
         size_t i = 0;
@@ -130,18 +161,18 @@ static void memory_dmp(struct cpu *p, const char *fn) {
 static void debug(struct cpu *p) {
         size_t i;
 
-        printf("%2s: 0x%04X\n", "A", p->r[rA]);
-        printf("%2s: 0x%04X\n", "B", p->r[rB]);
-        printf("%2s: 0x%04X\n", "C", p->r[rC]);
-        printf("%2s: 0x%04X\n", "D", p->r[rD]);
-        printf("%2s: 0x%04X\n", "X", p->r[rX]);
-        printf("%2s: 0x%04X\n", "Y", p->r[rY]);
-        printf("%2s: 0x%04X\n", "Z", p->r[rZ]);
-        printf("%2s: 0x%04X\n", "J", p->r[rJ]);
+        printf("%2s: 0x%04X (%d)\n", "A", p->r[rA], (s16)p->r[rA]);
+        printf("%2s: 0x%04X (%d)\n", "B", p->r[rB], (s16)p->r[rB]);
+        printf("%2s: 0x%04X (%d)\n", "C", p->r[rC], (s16)p->r[rC]);
+        printf("%2s: 0x%04X (%d)\n", "D", p->r[rD], (s16)p->r[rD]);
+        printf("%2s: 0x%04X (%d)\n", "X", p->r[rX], (s16)p->r[rX]);
+        printf("%2s: 0x%04X (%d)\n", "Y", p->r[rY], (s16)p->r[rY]);
+        printf("%2s: 0x%04X (%d)\n", "Z", p->r[rZ], (s16)p->r[rZ]);
+        printf("%2s: 0x%04X (%d)\n", "J", p->r[rJ], (s16)p->r[rJ]);
         printf("%2s: 0x%04X\n", "IA", p->ia);
         printf("%2s: 0x%04X\n", "SP", p->sp);
         printf("%2s: 0x%04X\n", "IP", p->ip);
-        printf("%2s: 0x%04X\n", "OV", p->o);
+        printf("%2s: 0x%04X (%d)\n", "O", p->o, (s16)p->o);
         printf("%2s: %d\n", "CPU CYCLES", p->cycles);
         printf("\n");
 
@@ -212,7 +243,7 @@ static u16 *getopr(struct cpu *p, u8 b, u16 *w) {
                 case 0x1b:
                         o = &p->ip;
                         break;
-                // OV
+                // O
                 case 0x1c:
                         o = &p->o;
                         break;
@@ -272,23 +303,16 @@ static void step(struct cpu *p) {
                 case STO: *d = *s; break;
                 // ADD
                 case ADD: {
-                        if(*s+*d > 0xffff) 
-                                p->o = 1;
-                        else
-                                p->o = 0;
-
+                        p->o = ((*s + *d) > 0xffff ? 1 : 0);
                         *d = (*s+*d); 
                 } break;
                 // SUB
                 case SUB: {
-                        signed short cc = (signed short)(*d-*s);
-                        if(cc < 0) {
-                                *d = 0xffff-*s+1;
-                                p->o = 0xffff;
-                        } else {
-                                *d -= *s;
-                                p->o = 0;
-                        }
+                        if(*d < 0) *d = ~(*d);
+                        if(*s < 0) *s = ~(*s);
+
+                        p->o = ((*d - *s) < 0 ? 0xffff : 0);
+                        *d -= *s;
                 } break;
                 // MUL
                 case MUL: *d = *s*(*d); break;
@@ -369,27 +393,27 @@ static void step(struct cpu *p) {
                 // JTR
                 case JTR: {
                         // push IP on stack
-                        p->mem[--p->sp] = p->ip;
+                        PUSH(p->ip);
                         // jump
                         p->ip = *d; 
                 } break;
                 // PUSH
                 case PUSH: {
-                        p->mem[--p->sp] = *d;
+                        PUSH(*d);
                 } break;
                 // POP
                 case POP: {
-                        *d = p->mem[p->sp++];
+                        *d = POP();
                 } break;
                 // RET
                 case RET: {
                         // pop IP from stack
-                        p->ip = p->mem[p->sp++];
+                        p->ip = POP();
                 } break;
                 // RETI
                 case RETI: {
                         // pop IP from stack
-                        p->ip = p->mem[p->sp++];
+                        p->ip = POP();
                         // set IA to 0, means we are returning
                         // from interrupt routine
                         // p->ia = 0;
@@ -397,9 +421,6 @@ static void step(struct cpu *p) {
                 // IAR 
                 case IAR: {
                         // set IA to a value
-                        // means we are expecting an interrupt routine
-                        // to be entered or a hardware interrupt to
-                        // be triggered
                         p->ia = *d;
 
                 } break;
@@ -408,7 +429,7 @@ static void step(struct cpu *p) {
                         // set A to the message
                         p->r[ rA ] = *d;
                         // push return IP to stack
-                        p->mem[--p->sp] = p->ip;
+                        PUSH(p->ip);
                         // jump to IA
                         p->ip = p->ia;
                 } break;
@@ -460,13 +481,13 @@ int main(int argc, char **argv) {
 
         // Init cpu and load the program
         load(&p, i_fn);
-        
-        // Add floppy
-        // MID: 0x32ba
-        // HID: 0x236e
-        // _init = floppy_init()
-        // _handle_interrupt = floppy_handle_interrupt(u16)
-        add_device(&p, floppy_init, floppy_handle_interrupt);
+
+        // Add keyboard
+        // MID: 0xbeed
+        // HID: 0x0011
+        // _init = keyboard_init()
+        // handle_interrupt = keyboard_handle_interrupt(u16)
+        add_device(&p, keyboard_init, keyboard_handle_interrupt);
 
         // Add monitor
         // MID: 0xff21
@@ -474,6 +495,13 @@ int main(int argc, char **argv) {
         // _init = monitor_init()
         // _handle_interrupt = monitor_handle_interrupt(u16)
         add_device(&p, monitor_init, monitor_handle_interrupt);
+
+        // Add floppy
+        // MID: 0x32ba
+        // HID: 0x236e
+        // _init = floppy_init()
+        // _handle_interrupt = floppy_handle_interrupt(u16)
+        add_device(&p, floppy_init, floppy_handle_interrupt);
 
         u32 run = 0;
         u8 c = 0;

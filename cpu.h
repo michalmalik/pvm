@@ -38,6 +38,8 @@ struct cpu {
 
         // Linked list of devices
         struct device *devices;
+
+        u32 interrupt_enabled;
 };
 
 // union is not needed, we don't 
