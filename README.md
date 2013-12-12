@@ -75,19 +75,13 @@
 
 #### Devices
 
-Devices are identified and manipulated by their hardware index. 
-The 32-bit version of the ID contains manufacter id (high 16 bits) and hardware
+* Devices are identified and manipulated by their hardware index. 
+The 32-bit version of the uid contains manufacter id (high 16 bits) and hardware
 id (low 16 bits).
 
 ``0x32ba236e``
 
 **0x32ba** being the *manufacter* id and **0x236e** the *hardware id*.
-
-##### Known devices for PCPU:
-
-* Keyboard, **0xbeed0011**
-* Monitor, **0xff21beba**
-* Floppy 1.44MB, **0x32ba236e**
 
 ### Assembly language
 
