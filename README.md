@@ -3,7 +3,7 @@
 * **NOTICE:** PCPU is supposed to be ticking on 1 Mhz frequency, but it's purely
 arbitrary and **not working properly**. I am just using it to slow down the execution.
 Basically every instruction takes from 1 to 3 execution cycles. Which is not how CPUs work.
-Also, the devices are not operating on any frequency. PCPU is partially inspired by [PDP-11](http://en.wikipedia.org/wiki/PDP-11) and [Notch's](http://twitter.com/notch) [DCPU-16](http://dcpu.com/dcpu-16/)
+Also, the devices are not synchronised with PCPU. PCPU is partially inspired by [PDP-11](http://en.wikipedia.org/wiki/PDP-11) and [Notch's](http://twitter.com/notch) [DCPU-16](http://dcpu.com/dcpu-16/)
 
 * **16-bit** CPU, 16-bit words 
 * **0x8000 words** of memory
@@ -87,7 +87,7 @@ x86-style branching (instructions that would set Z flag and branching would be d
 --------------------------------------------------------------------------------------
 | OP     | INS              | Description                                            |
 | :----: | ---------------- | ------------------------------------------------------ |
-| 0x3F   | HLT              | halt the CPU execution                                 |
+| 0x20   | HLT              | halt the CPU execution                                 |
 
 #### Devices
 
@@ -99,6 +99,8 @@ id (low 16 bits).
 
 **0x32ba** being the *manufacter* id and **0x236e** the *hardware id*.
 
+* Devices can fully manipulate the CPU and the memory.
+
 ### Assembly language
 
 See examples directory.
@@ -106,8 +108,6 @@ See examples directory.
 #### Preprocessor
 
 ##### define
-
-Currently, there's no limit for defines for a single file. 
 
 ##### test.asm
 
