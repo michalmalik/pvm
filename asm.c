@@ -93,7 +93,7 @@ static const char *tn[] = {
 	"MULS", "DIVS", "MODS",
 	"IFE", "IFN", "IFG", "IFL", "IFA", "IFB", "JMP", "JTR",
 	"PUSH", "POP", "RET", "RETI", "IAR", "INT",
-	"HWI", "HWQ", "HWN",
+	"HWI", "HWQ", "HWN", "HLT",
 	"DAT", 
 	".", "#", ":", ",", "[", "]", "+",
 	"(NUMBER)", "(STRING)", "(QUOTED STRING)", "(EOL)", "(EOF)"
@@ -108,7 +108,7 @@ enum {
 	tMULS, tDIVS, tMODS,
 	tIFE, tIFN, tIFG, tIFL, tIFA, tIFB, tJMP, tJTR,
 	tPUSH, tPOP, tRET, tRETI, tIAR, tINT,
-	tHWI, tHWQ, tHWN,
+	tHWI, tHWQ, tHWN, tHLT,
 	tDAT,
 	tDOT, tHASH, tCOLON, tCOMMA, tBS, tBE, tPLUS,
 	tNUM, tSTR, tQSTR, tEOL, tEOF
@@ -777,7 +777,8 @@ again:
 				assemble_i(t, d, s);
 			} break;
 
-			case tRET: case tRETI: {
+			case tRET: case tRETI:
+			case tHLT: {
 				assemble_i(t, d, s);
 			} break;
 

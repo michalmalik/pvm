@@ -10,7 +10,7 @@ static const char *opc[] = {
 	"MULS", "DIVS", "MODS",
 	"IFE", "IFN", "IFG", "IFL", "IFA", "IFB", 
 	"JMP", "JTR", "PUSH", "POP", "RET", "RETI",
-	"IAR", "INT", "HWI", "HWQ", "HWN"
+	"IAR", "INT", "HWI", "HWQ", "HWN", "HLT"
 };
 
 static const char *regs = "ABCDXYZJ";
@@ -67,8 +67,8 @@ void disassemble(u16 *mem, u16 ip, char *out) {
 	// NOT, JMP, JTR, PUSH, POP, IAR, INT, HWI, HWQ, HWN
 	if((op == NOT) || (op >= JMP && op <= POP) || (op >= IAR && op <= HWN)) {
 		dis_opr(mem, OPD(ins), ip, out);
-	// RET, RETI
-	} else if(op == RET || op == RETI) {
+	// RET, RETI, HLT
+	} else if(op == RET || op == RETI || op == HLT) {
 
 	// DAT
 	} else if(op > ins_num) {

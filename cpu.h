@@ -6,6 +6,8 @@
 #define zero(a)		(memset((a), 0, sizeof((a))))
 #define count(a)	(sizeof((a))/sizeof((a)[0]))
 
+#define PUSH(a)          p->mem[--p->sp] = a
+#define POP()            p->mem[p->sp++]
 #define OPO(op)         (op&0x3f)
 #define OPD(op)         (op>>11)
 #define OPS(op)         ((op>>6)&0x1f)
@@ -27,7 +29,7 @@ enum _instructions {
         MULS, DIVS, MODS,
         IFE, IFN, IFG, IFL, IFA, IFB,
         JMP, JTR, PUSH, POP, RET, RETI,
-        IAR, INT, HWI, HWQ, HWN
+        IAR, INT, HWI, HWQ, HWN, HLT
 };
 
 struct cpu {
@@ -36,11 +38,10 @@ struct cpu {
         u16 mem[0x8000];
         u32 cycles;
 
+        u32 halt;
+
         // Linked list of devices
         struct device *devices;
-
-        u16 current_interrupt;
-        u32 interrupt_enabled;
 };
 
 // union is not needed, we don't 
@@ -53,12 +54,13 @@ struct device {
         u16 hid; // hardware id
 
         u32 (*_init)(struct cpu *);
-        void (*_handle_interrupt)(u16);
+        void (*_handle_interrupt)();
 };
 
 // We want to export these to the devices
 void error(const char *format, ...);
 void *scalloc(size_t size);
-void trigger_interrupt(struct cpu *p, u16 hwi);
+
+void halt_cpu(struct cpu *p);
 
 #endif

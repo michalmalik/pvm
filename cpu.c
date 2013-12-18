@@ -12,21 +12,18 @@
 #define CPU_TICK                1000           
 #define STACK_START             0x8000
 
-#define PUSH(a)                 p->mem[--p->sp] = a
-#define POP()                   p->mem[p->sp++]
-
 extern void disassemble(u16 *mem, u16 ip, char *out);
 
 // Load init functions for devices
 // Init function always returns the device id
-extern u32 keyboard_init(struct cpu *p);
-extern void keyboard_handle_interrupt(u16 hwi);
+extern u32 keyboard_init(struct cpu *proc);
+extern void keyboard_handle_interrupt();
 
-extern u32 floppy_init(struct cpu *p);
-extern void floppy_handle_interrupt(u16 hwi);
+extern u32 floppy_init(struct cpu *proc);
+extern void floppy_handle_interrupt();
 
-extern u32 monitor_init(struct cpu *p);
-extern void monitor_handle_interrupt(u16 hwi);
+extern u32 monitor_init(struct cpu *proc);
+extern void monitor_handle_interrupt();
 
 void error(const char *format, ...) {
         char buf_1[512] = {0};
@@ -55,8 +52,9 @@ void *scalloc(size_t size) {
 
 // id contains mid and hid
 // _init is the init function for the device
-// _handle_interrupt is the routine that handles all hardware interrupts
-static void add_device(struct cpu *p, u32 (*_init)(struct cpu *), void (*_handle_interrupt)(u16)){
+// _handle_interrupt is the routine that handles all hardware interrupts trigged
+// on the device
+static void add_device(struct cpu *p, u32 (*_init)(struct cpu *), void (*_handle_interrupt)()){
         struct device *dev = NULL;
         u32 id = 0;
 
@@ -119,34 +117,6 @@ static void free_devices(struct cpu *p) {
         p->devices = NULL;
 }
 
-/*
-        When the device triggers an interrupt,
-        it's sent to the processor. and 
-
-        interrupt_enabled variable is set to 1 in
-        the processor structure.
-
-        wait_for_interrupt function is running in 
-        a thread waiting for interrupt_enabled 
-        to be 1, then executes some block of code and
-        sets interrupt_enabled to 0.
-*/
-void *wait_for_interrupt(void *proc) {
-        struct cpu *p = (struct cpu *)proc;
-        while(1) {
-                if(p->interrupt_enabled) {
-                        printf("CPU received an interrupt 0x%04x\n", p->current_interrupt);
-                        p->interrupt_enabled = 0;
-                }
-                usleep(1);
-        }
-}
-
-void trigger_interrupt(struct cpu *p, u16 hwi) {
-        p->interrupt_enabled = 1;
-        p->current_interrupt = hwi;
-}
-
 static void memory_dmp(struct cpu *p, const char *fn) {
         FILE *fp = NULL;
         size_t i = 0;
@@ -163,22 +133,24 @@ static void memory_dmp(struct cpu *p, const char *fn) {
         fclose(fp);
 }
 
+#define REG_DBG(r, a)              printf("%2s: 0x%04x (%d)\n", r, a, (s16)a)
+#define SPC_DBG(s, a)              printf("%2s: 0x%04x\n", s, a)
 static void debug(struct cpu *p) {
         size_t i;
 
-        printf("%2s: 0x%04X (%d)\n", "A", p->r[rA], (s16)p->r[rA]);
-        printf("%2s: 0x%04X (%d)\n", "B", p->r[rB], (s16)p->r[rB]);
-        printf("%2s: 0x%04X (%d)\n", "C", p->r[rC], (s16)p->r[rC]);
-        printf("%2s: 0x%04X (%d)\n", "D", p->r[rD], (s16)p->r[rD]);
-        printf("%2s: 0x%04X (%d)\n", "X", p->r[rX], (s16)p->r[rX]);
-        printf("%2s: 0x%04X (%d)\n", "Y", p->r[rY], (s16)p->r[rY]);
-        printf("%2s: 0x%04X (%d)\n", "Z", p->r[rZ], (s16)p->r[rZ]);
-        printf("%2s: 0x%04X (%d)\n", "J", p->r[rJ], (s16)p->r[rJ]);
-        printf("%2s: 0x%04X\n", "IA", p->ia);
-        printf("%2s: 0x%04X\n", "SP", p->sp);
-        printf("%2s: 0x%04X\n", "IP", p->ip);
-        printf("%2s: 0x%04X (%d)\n", "O", p->o, (s16)p->o);
-        printf("%2s: %d\n", "CPU CYCLES", p->cycles);
+        REG_DBG( "A",   p->r[rA] );
+        REG_DBG( "B",   p->r[rB] );
+        REG_DBG( "C",   p->r[rC] );
+        REG_DBG( "D",   p->r[rD] );
+        REG_DBG( "J",   p->r[rJ] );
+        REG_DBG( "X",   p->r[rX] );
+        REG_DBG( "Y",   p->r[rY] );
+        REG_DBG( "Z",   p->r[rZ] );
+        SPC_DBG( "SP",  p->sp );
+        SPC_DBG( "IP",  p->ip );
+        SPC_DBG( "IA",  p->ia );
+        REG_DBG( "O",   p->o );
+        REG_DBG( "CPU CYCLES", p->cycles );
         printf("\n");
 
         printf("Stack:\n");
@@ -187,6 +159,8 @@ static void debug(struct cpu *p) {
                 if((i+1)%16==0) printf("\n");
         }
 }
+#undef SPC_DBG
+#undef REG_DBG
 
 static void load(struct cpu *p, const char *fn) {
         FILE *fp = NULL;
@@ -204,9 +178,6 @@ static void load(struct cpu *p, const char *fn) {
         fclose(fp);
 
         p->sp = STACK_START;
-
-        pthread_t tid;
-        pthread_create(&tid, NULL, &wait_for_interrupt, (void *)p);
 }
 
 #define ADD_CYCLES(p, n)    (p)->cycles += n
@@ -285,6 +256,10 @@ static int jump(struct cpu *p) {
         return wc;
 }
 
+void halt_cpu(struct cpu *p) {
+        p->halt = 1;
+}
+
 static void step(struct cpu *p) {
         char out[128] = {0};
         u16 op = 0;
@@ -292,10 +267,6 @@ static void step(struct cpu *p) {
         u16 *d = NULL, *s = NULL, w = 0;
         u16 wc = 0;
         u32 start_cyc = p->cycles;
-        struct timespec slp = {
-                .tv_sec = 0,
-                .tv_nsec = 0
-        };
 
         disassemble(p->mem, p->ip, out);
         puts(out);
@@ -422,9 +393,6 @@ static void step(struct cpu *p) {
                 case RETI: {
                         // pop IP from stack
                         p->ip = POP();
-                        // set IA to 0, means we are returning
-                        // from interrupt routine
-                        // p->ia = 0;
                 } break;
                 // IAR 
                 case IAR: {
@@ -450,7 +418,7 @@ static void step(struct cpu *p) {
 
                         // Call the handle interrupt method
                         // of the device
-                        dev->_handle_interrupt(p->ia);
+                        dev->_handle_interrupt();
                 } break;
                 // HWQ
                 case HWQ: {
@@ -469,10 +437,19 @@ static void step(struct cpu *p) {
                 case HWN: {
                         *d = count_devices(p);
                 } break;
+                // HLT
+                case HLT: {
+                        // Halt the execution
+                        halt_cpu(p);
+                };
                 default: break;
         }
 
-        slp.tv_nsec = (p->cycles-start_cyc)*CPU_TICK;
+        struct timespec slp = {
+                .tv_sec = 0,
+                .tv_nsec = (p->cycles-start_cyc)*CPU_TICK
+        };
+
         nanosleep(&slp, NULL);
 }
 
@@ -487,28 +464,28 @@ int main(int argc, char **argv) {
         strcpy(i_fn, argv[1]);
         strcpy(o_fn, argv[2]);
 
-        // Init cpu and load the program
+        // Init cpu and load the main program
         load(&p, i_fn);
 
         // Add keyboard
         // MID: 0xbeed
         // HID: 0x0011
-        // _init = keyboard_init()
-        // handle_interrupt = keyboard_handle_interrupt(u16)
+        // _init = keyboard_init(struct cpu *)
+        // handle_interrupt = keyboard_handle_interrupt()
         add_device(&p, keyboard_init, keyboard_handle_interrupt);
 
         // Add monitor
         // MID: 0xff21
         // HID: 0xbeba
-        // _init = monitor_init()
-        // _handle_interrupt = monitor_handle_interrupt(u16)
+        // _init = monitor_init(struct cpu *)
+        // _handle_interrupt = monitor_handle_interrupt()
         add_device(&p, monitor_init, monitor_handle_interrupt);
 
         // Add floppy
         // MID: 0x32ba
         // HID: 0x236e
-        // _init = floppy_init()
-        // _handle_interrupt = floppy_handle_interrupt(u16)
+        // _init = floppy_init(struct cpu *)
+        // _handle_interrupt = floppy_handle_interrupt()
         add_device(&p, floppy_init, floppy_handle_interrupt);
 
         u32 run = 0;
@@ -535,7 +512,7 @@ int main(int argc, char **argv) {
                 } else if(c == 'r') {
                         run = 1;
                 }
-        } while(p.mem[p.ip]);
+        } while(p.mem[p.ip] && !p.halt);
 
         memory_dmp(&p, o_fn);
 
