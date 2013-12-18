@@ -1,10 +1,13 @@
 #ifndef __CPU_H__
 #define __CPU_H__
 
-#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <stdarg.h>
+#include <time.h>
 
-#define zero(a)		(memset((a), 0, sizeof((a))))
-#define count(a)	(sizeof((a))/sizeof((a)[0]))
+#include "node.h"
 
 #define PUSH(a)          p->mem[--p->sp] = a
 #define POP()            p->mem[p->sp++]
@@ -15,8 +18,10 @@
 
 typedef uint8_t u8;
 typedef uint16_t u16;
-typedef int16_t s16;
 typedef uint32_t u32;
+typedef int8_t s8;
+typedef int16_t s16;
+typedef int32_t s32;
 
 enum _registers {
         rA, rB, rC, rD, rX, rY, rZ, rJ
@@ -58,9 +63,6 @@ struct device {
 };
 
 // We want to export these to the devices
-void error(const char *format, ...);
-void *scalloc(size_t size);
-
 void halt_cpu(struct cpu *p);
 
 #endif

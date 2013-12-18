@@ -1,12 +1,10 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <stdarg.h>
-#include <string.h>
-#include <time.h>
-#include <pthread.h>
-#include <unistd.h>
-
 #include "cpu.h"
+
+/*
+        TODO:
+
+        1. Make devices functional :)
+*/
 
 // 1 Mhz in nanoseconds
 #define CPU_TICK                1000           
@@ -25,31 +23,6 @@ extern void floppy_handle_interrupt();
 extern u32 monitor_init(struct cpu *proc);
 extern void monitor_handle_interrupt();
 
-void error(const char *format, ...) {
-        char buf_1[512] = {0};
-        char buf_2[256] = {0};
-        va_list va;
-
-        va_start(va, format);
-
-        strcat(buf_1, "error: ");
-        vsprintf(buf_2, format, va);
-        strcat(buf_1, buf_2);   
-
-        puts(buf_1);
-        exit(1);
-}
-
-void *scalloc(size_t size) {
-        void *block = NULL;
-
-        if((block = calloc(1, size)) == NULL) {
-                error("calloc fail on line %d in %s", __LINE__, __FILE__);
-        }
-
-        return block;
-}       
-
 // id contains mid and hid
 // _init is the init function for the device
 // _handle_interrupt is the routine that handles all hardware interrupts trigged
@@ -58,7 +31,7 @@ static void add_device(struct cpu *p, u32 (*_init)(struct cpu *), void (*_handle
         struct device *dev = NULL;
         u32 id = 0;
 
-        dev = (struct device *)scalloc(sizeof(struct device));
+        dev = NEW_NODE(struct device);
 
         if(!p->devices) 
                 dev->index = 0;
@@ -81,7 +54,7 @@ static void add_device(struct cpu *p, u32 (*_init)(struct cpu *), void (*_handle
 static struct device *find_device(struct cpu *p, u16 index) {
         struct device *dev = NULL;
 
-        for(dev = p->devices; dev; dev = dev->next) {
+        ENUM_LIST(dev, p->devices) {
                 if(index == dev->index) {
                         return dev;
                 }
@@ -122,7 +95,8 @@ static void memory_dmp(struct cpu *p, const char *fn) {
         size_t i = 0;
 
         if((fp = fopen(fn, "wb")) == NULL) {
-                error("couldn't open/write to \"%s\"", fn);
+                free_devices(p);
+                die("error: couldn't open/write to \"%s\"", fn);
         }
 
         while(i < 0x8000) {
@@ -168,7 +142,8 @@ static void load(struct cpu *p, const char *fn) {
         u16 i = 0;
 
         if((fp = fopen(fn, "rb")) == NULL) {
-                error("file \"%s\" not found or not readable", fn);
+                free_devices(p);
+                die("error: file \"%s\" not found or not readable", fn);
         }
 
         while(!feof(fp) && fscanf(fp, "%c%c", &b1, &b2) != EOF) {
@@ -459,7 +434,7 @@ int main(int argc, char **argv) {
         static struct cpu p;
 
         if(argc < 3) {
-                error("usage: %s <program> <memory_dump>", argv[0]);
+                die("usage: %s <program> <memory_dump>", argv[0]);
         }
         strcpy(i_fn, argv[1]);
         strcpy(o_fn, argv[2]);

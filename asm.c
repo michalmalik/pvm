@@ -1,20 +1,14 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <stdarg.h>
-#include <stdint.h>
 #include <string.h>
+#include <stdarg.h>
 #include <ctype.h>
 
-#define zero(a)		memset((a), 0, sizeof((a)))
+#include "node.h"
 
 typedef uint8_t u8;
 typedef uint16_t u16;
 typedef uint32_t u32;
-
-struct Node {
-	struct Node *next;
-	void *block;
-};
 
 struct file_id {
 	FILE *fp;
@@ -116,22 +110,7 @@ enum {
 
 #define LAST_TOKEN	tEOF
 
-static void free_node(struct Node **head);
 static void free_memory();
-
-static void die(const char *format, ...) {
-	char buf[512] = {0};
-	va_list va;
-
-	va_start(va, format);
-
-	vsprintf(buf, format, va);
-
-	puts(buf);
-
-	free_memory();
-	exit(1);
-}
 
 static void error(const char *format, ...) {
 	char buf_1[512] = {0};
@@ -148,129 +127,110 @@ static void error(const char *format, ...) {
 
 	free_memory();
 	exit(1);
-}
-
-static void *scalloc(size_t size) {
-	void *block = NULL;
-
-	if((block = calloc(1, size)) == NULL) {
-		die("error: calloc fail on line %d in %s", __LINE__, __FILE__);
-	}
-
-	return block;
 }	
 
-#define NEW_NODE		(struct Node *)scalloc(sizeof(struct Node))
-#define DEFINE_BLOCK(a) 	a = (struct define *)node->block
-
 static void add_file(const u32 id, FILE *fp) {
-	struct Node *node = NEW_NODE;
-	struct file_id *fi = (struct file_id *)scalloc(sizeof(struct file_id));
+	struct Node *node = NEW_NODE(struct Node);
+	struct file_id *fi = NEW_NODE(struct file_id);
 
 	fi->id = id;
 	fi->fp = fp;
 
-	node->next = files;
-	node->block = fi;
-	files = node;
+	ADD_NODE(files, node, fi);
 }
 
 static void init_asm(const char *i_fn) {
-	struct file_asm fs = {0};
+	struct file_asm fs = {0}, tf = {0};
 
 	fs.lineptr = fs.linebuffer;
 	fs.defines = NULL;
 	strcpy(fs.i_fn, i_fn);
 
 	if((fs.fid.fp = fopen(i_fn, "r")) == NULL) {
-		if(cf->fid.fp) {
-			die("%s:%d, error: file \"%s\" does not exist \n\n%s", cf->i_fn, 
-				cf->linenumber, fs.i_fn, cf->line);
+		tf = *cf;
+		free_memory();
+		if(tf.fid.fp) {
+			die("%s:%d, error: file \"%s\" does not exist \n\n%s", tf.i_fn, 
+				tf.linenumber, fs.i_fn, tf.line);
 		} else {
 			die("error: file \"%s\" does not exist", fs.i_fn);
 		}
 	}
 
-	if(!files) 
+	if(!files) {
 		fs.fid.id = 0;
-	else 
-		fs.fid.id = ((struct file_id *)files->block)->id+1;
+	} else { 
+		fs.fid.id = CAST_NODE(files, struct file_id)->id+1;
+	}
 
 	add_file(fs.fid.id, fs.fid.fp);
-
 	*cf = fs;
 }
 
-static void add_symbol(const char *name, u16 addr, u16 value) {
+static void add_symbol(const char *name, u16 value) {
 	struct Node *node = NULL;
 	struct symbol *s = NULL;
 
-	for(node = symbols; node; node = node->next) {
-		s = (struct symbol *)node->block;
+	ENUM_LIST(node, symbols) {
+		s = CAST_NODE(node, struct symbol);
 		if(!strcmp(s->name, name)) {
 			error("symbol \"%s\" already defined here:\n%s:%d: %s", name, s->f.i_fn, 
 				s->f.linenumber, s->f.line);
 		}
 	}
 
-	node = NEW_NODE;
-	s = (struct symbol *)scalloc(sizeof(struct symbol));
+	node = NEW_NODE(struct Node);
+	s = NEW_NODE(struct symbol);
 
-	s->addr = addr;
+	s->addr = IP;
 	strcpy(s->name, name);
 	s->value = value;
 	s->f = *cf;
 
-	node->next = symbols;
-	node->block = s;
-	symbols = node;
+	ADD_NODE(symbols, node, s);
 }
 
-static void fix_symbol(const char *name, u16 addr, u16 const_val) {
-	struct Node *node = NEW_NODE;
-	struct fix *f = (struct fix *)scalloc(sizeof(struct fix));
+static void fix_symbol(const char *name, u16 const_val) {
+	struct Node *node = NEW_NODE(struct Node);
+	struct fix *f = NEW_NODE(struct fix);
 
 	strcpy(f->name, name);
 	strcpy(f->fn, cf->i_fn);
 	strcpy(f->linebuffer, cf->line);
 
-	f->fix_addr = addr;
+	f->fix_addr = IP+1;
 	f->linenumber = cf->linenumber;
 	f->const_val = const_val;
 
-	node->next = fixes;
-	node->block = f;
-	fixes = node;
+	ADD_NODE(fixes, node, f);
 }
 
 static void add_define(struct Node **list, const char *name, u16 value) {
 	struct Node *node = NULL;
 	struct define *d = NULL;
 
-	for(node = *list; node; node = node->next) {
-		DEFINE_BLOCK(d);
+	ENUM_LIST(node, *list) {
+		d = CAST_NODE(node, struct define);
 		if(!strcmp(d->name, name))
 			error("define \"%s\" already defined", name);
 	}
 
-	node = NEW_NODE;
-	d = (struct define *)scalloc(sizeof(struct define));
+	node = NEW_NODE(struct Node);
+	d = NEW_NODE(struct define);
 
 	strcpy(d->name, name);
 	d->value = value;
 
-	node->next = *list;
-	node->block = d;
-	*list = node;
+	ADD_NODE(*list, node, d);
 }
 
-#define CMP_NODE_SYMBOL()	!strcmp(((struct symbol *)node->block)->name, name)
-#define CMP_NODE_DEFINE()	!strcmp(((struct define *)node->block)->name, name)
+#define CMP_NODE_SYMBOL()	!strcmp(CAST_NODE(node, struct symbol)->name, name)
+#define CMP_NODE_DEFINE()	!strcmp(CAST_NODE(node, struct define)->name, name)
 
 static struct symbol *find_symbol(const char *name) {
 	struct Node *node = NULL;
 
-	for(node = symbols; node; node = node->next) {
+	ENUM_LIST(node, symbols) {
 		if(CMP_NODE_SYMBOL())
 			return node->block;
 	}
@@ -281,7 +241,7 @@ static struct symbol *find_symbol(const char *name) {
 static struct define *find_define(const char *name) {
 	struct Node *node = NULL;
 
-	for(node = cf->defines; node; node = node->next) {
+	ENUM_LIST(node, cf->defines) {
 		if(CMP_NODE_DEFINE()) 
 			return node->block;
 	}
@@ -293,12 +253,12 @@ static struct define *find_define(const char *name) {
 static u32 is_defined(const char *name) {
 	struct Node *node = NULL;
 
-	for(node = symbols; node; node = node->next) {
+	ENUM_LIST(node, symbols) {
 		if(CMP_NODE_SYMBOL())
 			return 1;
 	}
 
-	for(node = cf->defines; node; node = node->next) {
+	ENUM_LIST(node, cf->defines) {
 		if(CMP_NODE_DEFINE())
 			return 1;
 	}
@@ -306,15 +266,19 @@ static u32 is_defined(const char *name) {
 	return 0;
 }
 
+#undef CMP_NODE_SYMBOL
+#undef CMP_NODE_DEFINE
+
 static void fix_symbols() {
 	struct Node *node = NULL;
 	struct symbol *s = NULL;
 	struct fix *f = NULL;
 
-	for(node = fixes; node; node = node->next) {
-		f = (struct fix *)node->block;
+	ENUM_LIST(node, fixes) {
+		f = CAST_NODE(node, struct fix);
 		s = find_symbol(f->name);
 		if(!s) {
+			free_memory();
 			die("%s:%d, error: symbol \"%s\" is not defined\n\n%s", f->fn, f->linenumber,
 				 f->name, f->linebuffer);
 		}
@@ -329,8 +293,8 @@ static void print_symbols() {
 	struct Node *node = NULL;
 	struct symbol *s = NULL;
 	
-	for(node = symbols; node; node = node->next) {
-		s = (struct symbol *)node->block;
+	ENUM_LIST(node, symbols) {
+		s = CAST_NODE(node, struct symbol);
 		printf("%s %s 0x%04X 0x%04X\n", s->f.i_fn, s->name, s->addr, s->value);
 	}
 }
@@ -363,7 +327,7 @@ next_line:
 	// Copy clean line to cf->line for prettier
 	// error messages
 	if(newline) {
-		zero(cf->line);
+		ZERO(cf->line);
 		strcpy(cf->line, cf->lineptr);
 		for(i = 0; i < strlen(cf->line); i++) {
 			if(cf->line[i]=='\r'|| cf->line[i]=='\n')
@@ -386,7 +350,7 @@ next_line:
 			goto next_line;
 		}
 		case '"': {
-			zero(cf->tokenstr);
+			ZERO(cf->tokenstr);
 
 			x = cf->tokenstr;
 			for(;;) {
@@ -404,7 +368,7 @@ next_line:
 		} break;
 		default: {
 			if(isalpha(c)) {
-				zero(cf->tokenstr);
+				ZERO(cf->tokenstr);
 
 				cf->lineptr--;				
 				x = cf->tokenstr;
@@ -458,7 +422,7 @@ static int assemble_label(const char *name, int w) {
 		else {
 			if(d) rw = d->value;
 			else {
-				fix_symbol(name, IP+1, 0);
+				fix_symbol(name, 0);
 				rw = 0;
 			}
 		}
@@ -467,7 +431,7 @@ static int assemble_label(const char *name, int w) {
 		else {
 			if(d) rw += d->value;
 			else {
-				fix_symbol(name, IP+1, rw);
+				fix_symbol(name, rw);
 				rw = 0;
 			}
 		}
@@ -678,7 +642,7 @@ again:
 			} break;
 			case tCOLON: {
 				expect(tSTR);
-				add_symbol(cf->tokenstr, IP, IP);
+				add_symbol(cf->tokenstr, IP);
 			} break;
 			case tHASH: {
 				char buffer[128];
@@ -695,8 +659,8 @@ again:
 					assemble();
 
 					// Copy cf->defines to tdefines
-					for(node = cf->defines; node; node = node->next) {
-						DEFINE_BLOCK(def);
+					ENUM_LIST(node, cf->defines) {
+						def = CAST_NODE(node, struct define);
 						add_define(&tdefines, def->name, def->value);
 					}
 					free_node(&cf->defines);
@@ -705,8 +669,8 @@ again:
 					*cf = tf;
 
 					// Copy tdefines back to cf->defines
-					for(node = tdefines; node; node = node->next) {
-						DEFINE_BLOCK(def);
+					ENUM_LIST(node, tdefines) {
+						def = CAST_NODE(node, struct define);
 						add_define(&cf->defines, def->name, def->value);
 					}
 					free_node(&tdefines);
@@ -730,12 +694,12 @@ again:
 			write_mem:
 				switch(cf->token) {
 					case tNUM: {
-						if(add_sym) add_symbol(sym_name, IP, cf->tokennum);
+						if(add_sym) add_symbol(sym_name, cf->tokennum);
 						MEM[IP++]._w = cf->tokennum;
 					} break;
 					case tQSTR: {
 						b = 0 | cf->tokenstr[0];
-						if(add_sym) add_symbol(sym_name, IP, b);
+						if(add_sym) add_symbol(sym_name, b);
 
 						for(i = 0; i < strlen(cf->tokenstr); i++) {
 							MEM[IP++]._b.lo = cf->tokenstr[i];
@@ -816,11 +780,15 @@ again:
 	}
 }
 
+#undef PREPROC
+#undef ZERO_OPR_ST
+
 static void output(const char *fn) {
 	FILE *fp = NULL;
 	size_t i;
 
 	if((fp = fopen(fn, "wb")) == NULL) {
+		free_memory();
 		die("error: couldn't open/write to \"%s\"", fn);
 	}
 
@@ -829,21 +797,6 @@ static void output(const char *fn) {
 	}
 
 	fclose(fp);
-}
-
-static void free_node(struct Node **head) {
-	if(!(*head)) return;
-
-	struct Node *node = *head, *tmp = NULL;
-	while(node) {
-		tmp = node;
-		node = node->next;
-		if(tmp->block) free(tmp->block);
-		free(tmp);
-	}
-
-	free(node);
-	*head = NULL;
 }
 
 static void free_memory() {
@@ -856,8 +809,8 @@ static void free_memory() {
 	free_node(&fixes);
 
 	// Free all files
-	for(node = files; node; node = node->next) {
-		tmp = (struct file_id *)node->block;
+	ENUM_LIST(node, files) {
+		tmp = CAST_NODE(node, struct file_id);
 		fclose(tmp->fp);
 	}
 	
@@ -874,6 +827,7 @@ int main(int argc, char **argv) {
 	char o_fn[128] = {0};
 
 	if(argc < 3) {
+		free_memory();
 		die("usage: %s <source_file> <program>", argv[0]);
 	}
 
@@ -881,7 +835,7 @@ int main(int argc, char **argv) {
 	strcpy(o_fn, argv[2]);
 
 	// Init file_asm structure for the main file
-	cf = (struct file_asm *)scalloc(sizeof(struct file_asm));
+	cf = NEW_NODE(struct file_asm);
 	init_asm(i_fn);
 
 	assemble();
@@ -891,6 +845,5 @@ int main(int argc, char **argv) {
 	output(o_fn);
 
 	free_memory();
-
 	return 0;
 }

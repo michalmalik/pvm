@@ -54,7 +54,7 @@ void disassemble(u16 *mem, u16 ip, char *out) {
 
 	u16 ins = mem[ip];
 	u16 op = OPO(ins);
-	u16 ins_num = count(opc);
+	u16 ins_num = COUNT(opc);
 
 	sprintf(out+strlen(out), "%04X\t", ins);
 
