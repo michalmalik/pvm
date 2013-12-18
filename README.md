@@ -5,7 +5,7 @@ arbitrary and **not working properly**. I am just using it to slow down the exec
 Basically every instruction takes from 1 to 3 execution cycles. Which is not how CPUs work.
 Also, the devices are not synchronised with PCPU. PCPU is partially inspired by [PDP-11](http://en.wikipedia.org/wiki/PDP-11) and [Notch's](http://twitter.com/notch) [DCPU-16](http://dcpu.com/dcpu-16/)
 
-* **16-bit** CPU, 16-bit words 
+* **16-bit** words 
 * **0x8000 words** of memory
 * **8 16-bit general purpose registers** (A,B,C,D,X,Y,Z,J), **stack pointer** (SP), **instruction pointer** (IP), **interrupt address** register (IA), **overflow** (O) register
 * stack start **0x8000**
