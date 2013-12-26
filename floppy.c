@@ -1,13 +1,13 @@
+#include "cpu.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-#include "cpu.h"
-
-static const u32 DEVICE_ID = 0x32ba236e;
+static const uint32_t DEVICE_ID = 0x32ba236e;
 static struct cpu *p;
 
-u32 floppy_init(struct cpu *proc) {
+uint32_t floppy_init(struct cpu *proc) {
 	p = proc;
 
 	printf("Initiating floppy, id 0x%08x\n", DEVICE_ID);

@@ -1,13 +1,13 @@
+#include "cpu.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-#include "cpu.h"
-
-static const u32 DEVICE_ID = 0xff21beba;
+static const uint32_t DEVICE_ID = 0xff21beba;
 static struct cpu *p;
 
-u32 monitor_init(struct cpu *proc) {
+uint32_t monitor_init(struct cpu *proc) {
 	p = proc;
 
 	printf("Initiating monitor, id 0x%08x\n", DEVICE_ID);
