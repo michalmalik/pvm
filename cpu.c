@@ -1,5 +1,11 @@
 #include "cpu.h"
 
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <stdarg.h>
+#include <time.h>
+
 /*
         TODO:
 
@@ -10,26 +16,26 @@
 #define CPU_TICK                1000           
 #define STACK_START             0x8000
 
-extern void disassemble(u16 *mem, u16 ip, char *out);
+extern void disassemble(uint16_t *mem, uint16_t ip, char *out);
 
 // Load init functions for devices
 // Init function always returns the device id
-extern u32 keyboard_init(struct cpu *proc);
+extern uint32_t keyboard_init(struct cpu *proc);
 extern void keyboard_handle_interrupt();
 
-extern u32 floppy_init(struct cpu *proc);
+extern uint32_t floppy_init(struct cpu *proc);
 extern void floppy_handle_interrupt();
 
-extern u32 monitor_init(struct cpu *proc);
+extern uint32_t monitor_init(struct cpu *proc);
 extern void monitor_handle_interrupt();
 
 // id contains mid and hid
 // _init is the init function for the device
 // _handle_interrupt is the routine that handles all hardware interrupts trigged
 // on the device
-static void add_device(struct cpu *p, u32 (*_init)(struct cpu *), void (*_handle_interrupt)()){
+static void add_device(struct cpu *p, uint32_t (*_init)(struct cpu *), void (*_handle_interrupt)()){
         struct device *dev = NULL;
-        u32 id = 0;
+        uint32_t id = 0;
 
         dev = NEW_NODE(struct device);
 
@@ -51,7 +57,7 @@ static void add_device(struct cpu *p, u32 (*_init)(struct cpu *), void (*_handle
         p->devices = dev;
 }
 
-static struct device *find_device(struct cpu *p, u16 index) {
+static struct device *find_device(struct cpu *p, uint16_t index) {
         struct device *dev = NULL;
 
         ENUM_LIST(dev, p->devices) {
@@ -63,9 +69,9 @@ static struct device *find_device(struct cpu *p, u16 index) {
         return NULL;
 }
 
-static u16 count_devices(struct cpu *p) {
+static uint16_t count_devices(struct cpu *p) {
         struct device *dev = p->devices;
-        u16 ret = 0;
+        uint16_t ret = 0;
         
         while(dev) {
                 ret++;
@@ -107,7 +113,7 @@ static void memory_dmp(struct cpu *p, const char *fn) {
         fclose(fp);
 }
 
-#define REG_DBG(r, a)              printf("%2s: 0x%04x (%d)\n", r, a, (s16)a)
+#define REG_DBG(r, a)              printf("%2s: 0x%04x (%d)\n", r, a, (int16_t)a)
 #define SPC_DBG(s, a)              printf("%2s: 0x%04x\n", s, a)
 static void debug(struct cpu *p) {
         size_t i;
@@ -138,8 +144,8 @@ static void debug(struct cpu *p) {
 
 static void load(struct cpu *p, const char *fn) {
         FILE *fp = NULL;
-        u8 b1 = 0, b2 = 0;
-        u16 i = 0;
+        uint8_t b1 = 0, b2 = 0;
+        uint16_t i = 0;
 
         if((fp = fopen(fn, "rb")) == NULL) {
                 free_devices(p);
@@ -157,8 +163,8 @@ static void load(struct cpu *p, const char *fn) {
 
 #define ADD_CYCLES(p, n)    (p)->cycles += n
 
-static u16 *getopr(struct cpu *p, u8 b, u16 *w) {
-        u16 *o = NULL;
+static uint16_t *getopr(struct cpu *p, uint8_t b, uint16_t *w) {
+        uint16_t *o = NULL;
 
         if(USINGNW(b)) {
                 w = p->mem+(p->ip++);
@@ -208,10 +214,10 @@ static u16 *getopr(struct cpu *p, u8 b, u16 *w) {
 }
 
 static int jump(struct cpu *p) {
-        u8 wc = 0;
-        u16 o, oldo;
-        u8 d, s;
-        u16 op = *(p->mem+p->ip);
+        uint8_t wc = 0;
+        uint16_t o, oldo;
+        uint8_t d, s;
+        uint16_t op = *(p->mem+p->ip);
 
         do {
                 ADD_CYCLES(p, 1);
@@ -237,11 +243,11 @@ void halt_cpu(struct cpu *p) {
 
 static void step(struct cpu *p) {
         char out[128] = {0};
-        u16 op = 0;
-        u8 o = 0;
-        u16 *d = NULL, *s = NULL, w = 0;
-        u16 wc = 0;
-        u32 start_cyc = p->cycles;
+        uint16_t op = 0;
+        uint8_t o = 0;
+        uint16_t *d = NULL, *s = NULL, w = 0;
+        uint16_t wc = 0;
+        uint32_t start_cyc = p->cycles;
 
         disassemble(p->mem, p->ip, out);
         puts(out);
@@ -305,16 +311,16 @@ static void step(struct cpu *p) {
                 } break;
                 // MULS
                 case MULS: {
-                        *d = (s16)*d * (s16)*s;
+                        *d = (int16_t)*d * (int16_t)*s;
                 } break;
                 // DIVS
                 case DIVS: {
-                        p->o = (s16)*d % (s16)*s;
-                        *d = (s16)*d / (s16)*s;
+                        p->o = (int16_t)*d % (int16_t)*s;
+                        *d = (int16_t)*d / (int16_t)*s;
                 } break;
                 // MODS
                 case MODS: {
-                        *d = (s16)*d % (s16)*s;
+                        *d = (int16_t)*d % (int16_t)*s;
                 } break;
                 // IFE
                 case IFE: {
@@ -334,11 +340,11 @@ static void step(struct cpu *p) {
                 } break;
                 // IFA
                 case IFA: {
-                        if((s16)*d <= (s16)*s) p->ip += wc; 
+                        if((int16_t)*d <= (int16_t)*s) p->ip += wc; 
                 } break;
                 // IFB
                 case IFB: {
-                        if((s16)*d >= (s16)*s) p->ip += wc;
+                        if((int16_t)*d >= (int16_t)*s) p->ip += wc;
                 } break;
                 // JMP
                 case JMP: {
@@ -463,9 +469,9 @@ int main(int argc, char **argv) {
         // _handle_interrupt = floppy_handle_interrupt()
         add_device(&p, floppy_init, floppy_handle_interrupt);
 
-        u32 run = 0;
-        u8 c = 0;
-        u32 w1 = 0, w2 = 0;
+        uint32_t run = 0;
+        uint8_t c = 0;
+        uint32_t w1 = 0, w2 = 0;
         do {
                 if(!run) {
                         c = getchar();

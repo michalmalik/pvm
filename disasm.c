@@ -1,8 +1,8 @@
+#include "cpu.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-#include "cpu.h"
 
 static const char *opc[] = {
 	"STO", "ADD", "SUB", "MUL", "DIV", "MOD",
@@ -15,8 +15,8 @@ static const char *opc[] = {
 
 static const char *regs = "ABCDXYZJ";
 
-static void dis_opr(u16 *mem, u16 b, u16 ip, char *out) {
-	u16 w = 0;
+static void dis_opr(uint16_t *mem, uint16_t b, uint16_t ip, char *out) {
+	uint16_t w = 0;
 
 	if(USINGNW(b)) {
 		w = mem[ip+1];
@@ -49,12 +49,12 @@ static void dis_opr(u16 *mem, u16 b, u16 ip, char *out) {
 	}
 }
 
-void disassemble(u16 *mem, u16 ip, char *out) {
+void disassemble(uint16_t *mem, uint16_t ip, char *out) {
 	sprintf(out, "%04X:\t", ip);
 
-	u16 ins = mem[ip];
-	u16 op = OPO(ins);
-	u16 ins_num = COUNT(opc);
+	uint16_t ins = mem[ip];
+	uint16_t op = OPO(ins);
+	uint16_t ins_num = COUNT(opc);
 
 	sprintf(out+strlen(out), "%04X\t", ins);
 

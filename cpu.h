@@ -1,13 +1,9 @@
 #ifndef __CPU_H__
 #define __CPU_H__
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <stdarg.h>
-#include <time.h>
-
 #include "node.h"
+
+#include <stdint.h>
 
 #define PUSH(a)          p->mem[--p->sp] = a
 #define POP()            p->mem[p->sp++]
@@ -15,13 +11,6 @@
 #define OPD(op)         (op>>11)
 #define OPS(op)         ((op>>6)&0x1f)
 #define USINGNW(w)      ((w >= 0x10 && w <= 0x19))
-
-typedef uint8_t u8;
-typedef uint16_t u16;
-typedef uint32_t u32;
-typedef int8_t s8;
-typedef int16_t s16;
-typedef int32_t s32;
 
 enum _registers {
         rA, rB, rC, rD, rX, rY, rZ, rJ
@@ -38,12 +27,12 @@ enum _instructions {
 };
 
 struct cpu {
-        u16 r[8];
-        u16 sp, ip, ia, o;
-        u16 mem[0x8000];
-        u32 cycles;
+        uint16_t r[8];
+        uint16_t sp, ip, ia, o;
+        uint16_t mem[0x8000];
+        uint32_t cycles;
 
-        u32 halt;
+        uint32_t halt;
 
         // Linked list of devices
         struct device *devices;
@@ -54,11 +43,11 @@ struct cpu {
 struct device {
         struct device *next;
 
-        u16 index; // hardware index
-        u16 mid; // manufacter id
-        u16 hid; // hardware id
+        uint16_t index; // hardware index
+        uint16_t mid; // manufacter id
+        uint16_t hid; // hardware id
 
-        u32 (*_init)(struct cpu *);
+        uint32_t (*_init)(struct cpu *);
         void (*_handle_interrupt)();
 };
 
