@@ -1,23 +1,23 @@
+#include "node.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdarg.h>
+#include <stdint.h>
 #include <ctype.h>
 
-#include "node.h"
-
-typedef uint8_t u8;
-typedef uint16_t u16;
-typedef uint32_t u32;
+// 65536
+#define MEMORY_SIZE		0x8000
 
 struct file_id {
 	FILE *fp;
-	u32 id;
+	uint32_t id;
 };
 
 struct define {
 	char name[128];
-	u16 value;
+	uint16_t value;
 };
 
 struct file_asm {
@@ -27,21 +27,21 @@ struct file_asm {
 	char tokenstr[128];
 	char linebuffer[256];
 	
-	u32 linenumber;
+	uint32_t linenumber;
 
 	char line[256];
 	char *lineptr;
 
-	u32 token;
-	u16 tokennum;
+	uint32_t token;
+	uint16_t tokennum;
 
 	struct Node *defines;
 };
 
 struct symbol {
 	char name[128];
-	u16 addr;
-	u16 value;
+	uint16_t addr;
+	uint16_t value;
 
 	struct file_asm f;
 };
@@ -50,37 +50,45 @@ struct fix {
 	char fn[64];
 	char name[128];
 	char linebuffer[256];
-	u32 linenumber;
+	uint32_t linenumber;
 
-	u16 fix_addr;
-	u16 const_val;
+	uint16_t fix_addr;
+	uint16_t const_val;
 };
 
 struct operand {
-	u16 o;
+	uint16_t o;
 	int w;
 };
 
-union _mem {
+union memory {
 	struct {
-		u8 lo;
-		u8 hi;
+		uint8_t lo;
+		uint8_t hi;
 	} _b;
-	u16 _w;
+	uint16_t _w;
 };
 
-static union _mem MEM[0x8000];
-static u16 IP;
+static union memory MEM[MEMORY_SIZE];
+static uint16_t PC;
 
+// Current file structure
 static struct file_asm *cf;
 
+/*
+	files - linked list of all included files
+	symbols - linked list of all symbols defined
+		- throughout the included files
+	fixes - linked list of all symbols marked for
+		- fixing
+*/
 static struct Node *files;
 static struct Node *symbols;
 static struct Node *fixes;
 
 static const char *tn[] = {
 	"A", "B", "C", "D", "X", "Y", "Z", "J",
-	"SP", "IP", "IA", "O",
+	"SP", "PC", "IA", "O",
 	"STO",
 	"ADD", "SUB", "MUL", "DIV", "MOD",
 	"NOT", "AND", "OR", "XOR", "SHL", "SHR",
@@ -95,7 +103,7 @@ static const char *tn[] = {
 
 enum {
 	tA, tB, tC, tD, tX, tY, tZ, tJ,
-	tSP, tIP, tIA, tO,
+	tSP, tPC, tIA, tO,
 	tSTO, 
 	tADD, tSUB, tMUL, tDIV, tMOD,
 	tNOT, tAND, tOR, tXOR, tSHL, tSHR,
@@ -110,6 +118,10 @@ enum {
 
 #define LAST_TOKEN	tEOF
 
+/*
+	Declaring prototype soon, because error()
+	needs to call it before its definition.
+*/
 static void free_memory();
 
 static void error(const char *format, ...) {
@@ -129,7 +141,7 @@ static void error(const char *format, ...) {
 	exit(1);
 }	
 
-static void add_file(const u32 id, FILE *fp) {
+static void add_file(const uint32_t id, FILE *fp) {
 	struct Node *node = NEW_NODE(struct Node);
 	struct file_id *fi = NEW_NODE(struct file_id);
 
@@ -167,7 +179,7 @@ static void init_asm(const char *i_fn) {
 	*cf = fs;
 }
 
-static void add_symbol(const char *name, u16 value) {
+static void add_symbol(const char *name, uint16_t value) {
 	struct Node *node = NULL;
 	struct symbol *s = NULL;
 
@@ -182,7 +194,7 @@ static void add_symbol(const char *name, u16 value) {
 	node = NEW_NODE(struct Node);
 	s = NEW_NODE(struct symbol);
 
-	s->addr = IP;
+	s->addr = PC;
 	strcpy(s->name, name);
 	s->value = value;
 	s->f = *cf;
@@ -190,7 +202,7 @@ static void add_symbol(const char *name, u16 value) {
 	ADD_NODE(symbols, node, s);
 }
 
-static void fix_symbol(const char *name, u16 const_val) {
+static void fix_symbol(const char *name, uint16_t const_val) {
 	struct Node *node = NEW_NODE(struct Node);
 	struct fix *f = NEW_NODE(struct fix);
 
@@ -198,14 +210,20 @@ static void fix_symbol(const char *name, u16 const_val) {
 	strcpy(f->fn, cf->i_fn);
 	strcpy(f->linebuffer, cf->line);
 
-	f->fix_addr = IP+1;
+	f->fix_addr = PC+1;
 	f->linenumber = cf->linenumber;
 	f->const_val = const_val;
 
 	ADD_NODE(fixes, node, f);
 }
 
-static void add_define(struct Node **list, const char *name, u16 value) {
+/*
+	Since the file included file exports its defines
+	to the file including, we need to merge them to current
+	file structure and its defines, therefore add_define()
+	needs to know where to add the define.
+*/
+static void add_define(struct Node **list, const char *name, uint16_t value) {
 	struct Node *node = NULL;
 	struct define *d = NULL;
 
@@ -224,14 +242,16 @@ static void add_define(struct Node **list, const char *name, u16 value) {
 	ADD_NODE(*list, node, d);
 }
 
-#define CMP_NODE_SYMBOL()	!strcmp(CAST_NODE(node, struct symbol)->name, name)
-#define CMP_NODE_DEFINE()	!strcmp(CAST_NODE(node, struct define)->name, name)
+/*
+	t - node->block type
+*/
+#define CMP_NODE_NAME(t)		!strcmp(CAST_NODE(node, t)->name, name)
 
 static struct symbol *find_symbol(const char *name) {
 	struct Node *node = NULL;
 
 	ENUM_LIST(node, symbols) {
-		if(CMP_NODE_SYMBOL())
+		if(CMP_NODE_NAME(struct symbol))
 			return node->block;
 	}
 
@@ -242,50 +262,36 @@ static struct define *find_define(const char *name) {
 	struct Node *node = NULL;
 
 	ENUM_LIST(node, cf->defines) {
-		if(CMP_NODE_DEFINE()) 
+		if(CMP_NODE_NAME(struct define)) 
 			return node->block;
 	}
 
 	return NULL;
 }
 
-// Symbols have higher priority than defines
-static u32 is_defined(const char *name) {
-	struct Node *node = NULL;
+#undef CMP_NODE_NAME
 
-	ENUM_LIST(node, symbols) {
-		if(CMP_NODE_SYMBOL())
-			return 1;
-	}
-
-	ENUM_LIST(node, cf->defines) {
-		if(CMP_NODE_DEFINE())
-			return 1;
-	}
-
-	return 0;
+static uint32_t is_defined(const char *name) {
+	return (find_symbol(name) || find_define(name));
 }
-
-#undef CMP_NODE_SYMBOL
-#undef CMP_NODE_DEFINE
 
 static void fix_symbols() {
 	struct Node *node = NULL;
 	struct symbol *s = NULL;
-	struct fix *f = NULL;
+	struct fix f;
 
 	ENUM_LIST(node, fixes) {
-		f = CAST_NODE(node, struct fix);
-		s = find_symbol(f->name);
+		f = *(CAST_NODE(node, struct fix));
+		s = find_symbol(f.name);
 		if(!s) {
 			free_memory();
-			die("%s:%d, error: symbol \"%s\" is not defined\n\n%s", f->fn, f->linenumber,
-				 f->name, f->linebuffer);
+			die("%s:%d, error: symbol \"%s\" is not defined\n\n%s", f.fn, f.linenumber,
+				 f.name, f.linebuffer);
 		}
 		// [symbol + const_val]
 		// symbol is always represented as its address in memory
 		// and const_val can be added to it
-		MEM[f->fix_addr]._w += s->addr + f->const_val;
+		MEM[f.fix_addr]._w += s->addr + f.const_val;
 	}
 }
 
@@ -299,10 +305,10 @@ static void print_symbols() {
 	}
 }
 
-static u32 next_token() {
+static uint32_t next_token() {
 	char c = 0, *x = NULL;
 	size_t i;
-	u32 newline = 0;
+	uint32_t newline = 0;
 
 next_line:
 	if(!*cf->lineptr) {
@@ -348,7 +354,7 @@ next_line:
 		case ';': {
 			*cf->lineptr = 0;
 			goto next_line;
-		}
+		} break;
 		case '"': {
 			ZERO(cf->tokenstr);
 
@@ -357,12 +363,10 @@ next_line:
 				switch((c = *cf->lineptr++)) {
 					case '"': {
 						return tQSTR;
-						break;
-					}
+					} break;
 					default: {
 						*x++ = c;
-						break;
-					}
+					} break;
 				}
 			}
 		} break;
@@ -400,11 +404,11 @@ next_line:
 	return LAST_TOKEN+1;
 }
 
-static u32 next() {
+static uint32_t next() {
 	return (cf->token = next_token());
 }
 
-static void expect(u32 t) {
+static void expect(uint32_t t) {
 	if(next() != t) {
 		error("expected: \"%s\", got: \"%s\"", tn[t], tn[cf->token]);		
 	}
@@ -441,7 +445,7 @@ static int assemble_label(const char *name, int w) {
 }
 
 static struct operand assemble_o() {
-	u16 o = 0;
+	uint16_t o = 0;
 	int w = -1;
 
 	next();
@@ -457,8 +461,8 @@ static struct operand assemble_o() {
 			o = 0x1a;
 		} break;
 
-		// IP
-		case tIP: {
+		// PC
+		case tPC: {
 			o = 0x1b;
 		} break;
 
@@ -604,13 +608,13 @@ static struct operand assemble_o() {
 } 
 
 static void assemble_i(int inst, struct operand d, struct operand s) {
-	u16 o = inst - tSTO;
-	MEM[IP++]._w = (u16)(o|(s.o<<6)|(d.o<<11));
+	uint16_t o = inst - tSTO;
+	MEM[PC++]._w = (uint16_t)(o|(s.o<<6)|(d.o<<11));
 
 	if(d.w != -1)
-		MEM[IP++]._w = d.w & 0xffff;		
+		MEM[PC++]._w = d.w & 0xffff;		
 	if(s.w != -1)
-		MEM[IP++]._w = s.w & 0xffff;
+		MEM[PC++]._w = s.w & 0xffff;
 }
 
 #define PREPROC(a)		!strcasecmp(cf->tokenstr, (a))
@@ -618,8 +622,8 @@ static void assemble_i(int inst, struct operand d, struct operand s) {
 
 static void assemble() {
 	struct operand d, s;
-	u32 t;
-	u16 b = 0;
+	uint32_t t;
+	uint16_t b = 0;
 	size_t i;
 
 	struct Node *node = NULL;
@@ -642,7 +646,7 @@ again:
 			} break;
 			case tCOLON: {
 				expect(tSTR);
-				add_symbol(cf->tokenstr, IP);
+				add_symbol(cf->tokenstr, PC);
 			} break;
 			case tHASH: {
 				char buffer[128];
@@ -683,7 +687,7 @@ again:
 			} break;
 			case tDOT: {
 				char sym_name[128] = {0};
-				u32 add_sym = 1;
+				uint32_t add_sym = 1;
 
 				expect(tSTR);
 				strcpy(sym_name, cf->tokenstr);
@@ -695,14 +699,14 @@ again:
 				switch(cf->token) {
 					case tNUM: {
 						if(add_sym) add_symbol(sym_name, cf->tokennum);
-						MEM[IP++]._w = cf->tokennum;
+						MEM[PC++]._w = cf->tokennum;
 					} break;
 					case tQSTR: {
 						b = 0 | cf->tokenstr[0];
 						if(add_sym) add_symbol(sym_name, b);
 
 						for(i = 0; i < strlen(cf->tokenstr); i++) {
-							MEM[IP++]._b.lo = cf->tokenstr[i];
+							MEM[PC++]._b.lo = cf->tokenstr[i];
 						}
 					} break;
 					default: {
@@ -752,11 +756,11 @@ again:
 			_write_mem:
 				switch(cf->token) {
 					case tNUM: {
-						MEM[IP++]._w = cf->tokennum;
+						MEM[PC++]._w = cf->tokennum;
 					} break;
 					case tQSTR: {
 						for(i = 0; i < strlen(cf->tokenstr); i++) {
-							MEM[IP++]._b.lo = cf->tokenstr[i];
+							MEM[PC++]._b.lo = cf->tokenstr[i];
 						}
 					} break;
 					default: {
