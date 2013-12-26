@@ -1,9 +1,9 @@
+#include "node.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdarg.h>
-
-#include "node.h"
 
 void die(const char *format, ...) {
 	char buf[512] = {0};

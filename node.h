@@ -1,7 +1,7 @@
 #ifndef __NODE_H__
 #define __NODE_H__
 
-#include <stdint.h>
+#include <stdio.h>
 
 /*
 	mn - master node
@@ -14,12 +14,12 @@
 	mn = n;				\
 				}
 /*
-	t - type
+	t - node->block type
 */
 #define NEW_NODE(t)			(t *)safecalloc(sizeof(t))
 /*
 	n - temporary node
-	t - type
+	t - node->block type
 */
 #define CAST_NODE(n, t)			((t *)n->block)
 /*
