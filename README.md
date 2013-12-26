@@ -8,12 +8,12 @@ Also, the devices are not synchronised with PCPU. PCPU is partially inspired by 
 * **16-bit** words
 * **0x8000 words** of memory (65536 bytes)
 * registers
---* **8 16-bit general purpose registers** (A,B,C,D,X,Y,Z,J)
---* **program counter** (PC)
---* **stack pointer** (SP)
---* **overflow register** (O)
---* **interrupt address** register (IA)
-* stack starts at **0x8000** and goes down
+ - **8 16-bit general purpose registers** (A,B,C,D,X,Y,Z,J)
+ - **program counter** (PC)
+ - **stack pointer** (SP)
+ - **overflow register** (O)
+ - **interrupt address** register (IA)
+ - stack starts at **0x8000** and goes down
 
 ### Instruction specifications
 * instruction format 0xdddddsssssoooooo
